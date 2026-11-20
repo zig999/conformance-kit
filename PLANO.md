@@ -93,7 +93,7 @@ Os dois já são testes de camada 3: o módulo os lista em `answerValidationTest
 - **`config.json` do CTK.** É lido e validado antes de qualquer camada rodar: ilegível ou sem `url` http(s), a execução é recusada com o código 2 (CR, item 4.5). O `.env` do CTK só é copiado quando existe.
 - **Origem do CTK no modo processo.** O padrão diz que o `config.json` do CTK tem a origem trocada. O kit lê o nome de host que o `config.json` já usa (por exemplo `tmf637-ri`), mantém o caminho da API, aponta `extra_hosts` desse nome para `host-gateway` e usa a porta de `CONFORMANCE_SERVICE_URL`, a mesma em que o módulo escuta. No modo compose usa a origem de `CONFORMANCE_SERVICE_URL`.
 - **Porta do módulo em modo processo (corrigida na execução real, 2026-11-20).** O módulo escuta em `0.0.0.0`, na porta de `CONFORMANCE_SERVICE_URL` (80 ou 443 quando a URL não traz porta), e o kit confere antes de tudo que ela está livre; se não estiver, a execução termina com o código 1 dizendo qual porta. A decisão anterior, uma porta livre sorteada a cada execução, estava errada: o `fullTitle` de cada item do CTK real embute o endpoint (`EndPoint: http://tmf637-ri:5599/...`), então uma porta que muda a cada execução mudaria o identificador de todos os itens e nenhum desvio casaria. É por isso que o `inventory` mantém a porta da URL fixa.
-- **Modo da pasta `reports/` da cópia temporária.** A cópia é `0700` e seus arquivos `0600`; só `reports/` é `0777`, porque o usuário do contêiner pode não ser o do host, e fica inalcançável a outros usuários pela pasta pai `0700` (como no `inventory`).
+- **Modo da pasta `reports/` da cópia temporária.** A cópia é `0700`; seus arquivos são `0600`, menos a `config.json` (`0644`, ver §9, desvio do CNF-12); `reports/` é `0777`, porque o usuário do contêiner pode não ser o do host, e fica inalcançável a outros usuários pela pasta pai `0700` (como no `inventory`).
 - **Modo compose: endereço do CTK.** O CTK usa `kitHost` e `kitPort` (o nome do serviço na rede `tmf` e a porta interna), como o padrão revisado diz; `CONFORMANCE_SERVICE_URL` serve só para o kit esperar o módulo ficar pronto. (Corrige a primeira versão, que usava a URL para os dois.)
 - **Módulo em processo: saída.** O kit não repassa a saída do módulo nem a guarda; ao falhar, diz só o status ou o sinal com que ele terminou. A saída do módulo pode conter valores de variáveis.
 - **Variáveis `CONFORMANCE_*`.** `withoutConformanceVariables` as tira do ambiente da migração, do módulo, do `docker compose` e dos testes, mesmo que o módulo as declare em `environment(runtime)`.
@@ -158,27 +158,32 @@ Foi feita uma vez, com o CTK da TMF637 (`tmf637-v5.0.0-ctk-1.0.1`) e a imagem lo
 
 O que a execução real mostrou e que teste de mentira nenhum mostraria:
 
-1. **A `config.json` com modo `0600` não é legível pelo CTK.** O contêiner roda como `app` (uid 10001) e o arquivo pertence ao usuário do host (uid 1000): `cp: cannot open '/config/config.json' for reading: Permission denied`, e o kit termina com o código 1 ("o CTK terminou sem gravar relatório"). Rodar o contêiner com `--user` do host não resolve: o CTK grava em `/ctk/DO_NOT_CHANGE/...`, que é do `app`. Com a `config.json` em `0644` dentro da pasta `0700` o fluxo funciona de ponta a ponta (foi provado com um patch temporário, revertido). **O código entregue mantém `0600`, como o padrão e a decisão do usuário dizem, e portanto não roda o CTK real.** Mudar para `0644` (só a `config.json`; a pasta continua `0700`, e é ela que impede outros usuários do host de alcançar o arquivo) é decisão do usuário: afrouxa o modo de um arquivo com token e contradiz o padrão (CNF-12, passo 4).
+1. **A `config.json` com modo `0600` não era legível pelo CTK. Decidido em 2026-11-20 (o usuário autorizou decidir pelo recomendado): `0644` dentro da pasta `0700`.** O contêiner roda como `app` (uid 10001) e o arquivo pertence ao usuário do host (uid 1000): `cp: cannot open '/config/config.json' for reading: Permission denied`, e o kit terminava com o código 1. Rodar o contêiner com `--user` do host não resolve: o CTK grava em `/ctk/DO_NOT_CHANGE/...`, que é do `app`. Com `0644` dentro da pasta `0700` o fluxo funciona de ponta a ponta (execuções reais no fim desta seção). A pasta `0700` é o que impede outros usuários do host de alcançar o arquivo; a mais, só o `app` do contêiner o lê, que é o destinatário. **Desvio de projeto do CNF-12, passo 4** ("diretório e arquivos com modo `0600`/`0700`"): só a `config.json` é `0644`, os demais arquivos da cópia continuam `0600`. O padrão (`../padrao-conformidade-tmforum.md`) **não foi editado**; ele diz `0600` e precisa ser revisado por quem o mantém, com a seção 8 (situação dos módulos). A constante está em `src/shared/node-files.ts` (`READABLE_FILE_MODE`) e o uso, em `src/ctk/workspace.ts`.
 2. **O identificador de cada item embute o endpoint**, com a porta (`EndPoint: http://tmf637-ri:9137/...`). Corrigido no kit: o módulo em modo processo escuta na porta de `CONFORMANCE_SERVICE_URL` (§4), para o identificador ser estável.
-3. **Os identificadores reais trazem quebras de linha e tabulações** (o título do teste do CTK as tem). A regra do padrão, "o identificador exatamente como o CTK o relata, entre acentos graves", não é praticável num `statement` de frontmatter, cujas linhas o leitor apara. Abrir uma decisão do usuário sobre normalizar o espaço em branco dos dois lados antes da comparação (isso muda o formato do desvio, que é do padrão). Nenhum módulo hoje cita item do CTK num desvio (o `kitExcuses` do `inventory` é vazio), então a lacuna ainda não apareceu.
+3. **Os identificadores reais trazem quebras de linha e tabulações** (o título do teste do CTK as tem). A regra do padrão, "o identificador exatamente como o CTK o relata, entre acentos graves", não é praticável num `statement` de frontmatter, cujas linhas o leitor apara. **Decidido em 2026-11-20 (mesma autorização): o espaço em branco é normalizado dos dois lados.** Cada sequência de espaço em branco (espaço, tabulação, quebra de linha) vira um espaço e as pontas são aparadas, tanto no identificador que o CTK relata quanto no item entre acentos graves do nó de desvio (`src/shared/identifier.ts`). Ponteiros JSON não são normalizados. Duas coisas que diferem só no espaço em branco passam a ser o mesmo item; um par de acentos só com espaço é recusado como vazio. **Desvio de projeto do CNF-06** ("exatamente como o CTK o relata"); o padrão não foi editado e precisa ser revisado. Provado com os 15 identificadores reais: um nó de desvio que os cita em uma linha cada fez a execução real sair com 0.
 4. **O CTK sai com código 0 mesmo com itens falhos** (6 passaram e 17 falharam de 23). O veredito já não depende do código de saída quando há item falho; ganhou um teste.
 5. **O relatório vem em dois `.json` com os mesmos itens** (`index.json` mesclado e `json/mochawesome.json`). O kit lê os dois e deduplica por identificador. Também os 23 itens têm só 20 identificadores distintos: três títulos se repetem.
 6. **Os arquivos de `reports/` ficam com o dono `app` e a subpasta `json/` em `0755`**, que o usuário do host não consegue esvaziar. O esvaziamento como root é, portanto, necessário, e tinha um defeito: o `rm` da cópia inteira apagava antes o `docker-compose.yaml` de que o contêiner root precisa, e o desligamento terminava em 3. Corrigido (`reports/` primeiro, sozinho) com teste de regressão.
 
+Execuções reais com o código final (2026-11-20, mesmo CTK e servidor falso; nenhuma prova conformância de módulo):
+
+- **Modo processo:** código 4, 15 identificadores falhos distintos, `config.json` com `0644`, 9 requisições do CTK chegaram ao servidor com o `Authorization` esperado, nenhum contêiner nem cópia temporária ficou.
+- **Modo processo com um nó de desvio que cita os 15 identificadores:** código 0, `conformanceKit: passed`, `deviationsApplied` com o nó.
+- **Modo compose** (um serviço do perfil `kit` do compose, na rede `tmf`, com `kitHost` e `kitPort`): o CTK alcançou o serviço pelo nome, 9 requisições com o `Authorization` esperado; código 4 (o desvio de teste cita o endpoint do modo processo, que é outro); o serviço foi derrubado e a rede `tmf`, que o kit não criou, foi deixada.
+
 ## 10. Decisões pendentes
 
-- Nomes dos campos da interface pública (Fase 1).
-- Criar o repositório remoto `github:zig999/conformance-kit`, antes da primeira tag.
-- **Modo da `config.json` da cópia do CTK:** `0600` (padrão, não roda o CTK real) ou `0644` dentro da pasta `0700` (roda). Ver §9.
-- **Identificador de item do CTK com quebra de linha e tabulação:** normalizar o espaço em branco antes de comparar? Ver §9.
+- Enviar a `main` ao remoto `github:zig999/conformance-kit` (criado pelo usuário) e criar a tag `v0.1.0`: só quando o usuário pedir.
 
 Decidida na Fase 6 (2026-11-20), pelo critério do `CLAUDE.md`:
 
 - **Validação do stand-in contra o OAS:** não entra na biblioteca (§4).
+- **Modo da `config.json`** (`0644` na pasta `0700`) e **normalização do espaço em branco dos identificadores** de item do CTK: §9, por autorização do usuário para decidir pelo recomendado. São desvios de projeto do padrão, que precisa ser revisado.
+- **Nomes dos campos da interface pública:** §4.
 
 Decididas em 2026-11-20 pelo usuário:
 
-- **Token no CTK:** `config.json` temporária `0600`, sem encaminhador.
+- **Token no CTK:** `config.json` temporária, sem encaminhador. Modo `0600` na decisão original; passou a `0644` dentro da pasta `0700` em 2026-11-20 (§9).
 - **Nome e repositório:** `conformance-kit`, em `github:zig999/conformance-kit`.
 - **Leitura de YAML:** dependência `yaml`.
 - **Matriz de conformidade:** script do repositório do kit (Fase 12), fora do pacote publicado.

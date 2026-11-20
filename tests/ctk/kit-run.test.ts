@@ -107,12 +107,19 @@ describe('a service of a previous run', () => {
 });
 
 describe('the private copy of the kit', () => {
-  it('writes the Authorization header only to the config.json of the copy, with mode 0600', async () => {
+  it('writes the Authorization header only to the config.json of the copy', async () => {
     const { files } = await runKit();
     const holding = [...files.entries].filter(([, entry]) => entry.text.includes(AUTHORIZATION));
     expect(holding).toHaveLength(1);
     expect(holding[0]?.[0]).toBe(`${WORKSPACE}/config.json`);
-    expect(files.modeOf(`${WORKSPACE}/config.json`)).toBe(0o600);
+  });
+
+  it('makes the config.json readable by the container of the kit (mode 0644), and the rest of the copy private', async () => {
+    const { files } = await runKit();
+    expect(files.modeOf(`${WORKSPACE}/config.json`)).toBe(0o644);
+    expect(files.modeOf(`${WORKSPACE}/compose.override.yaml`)).toBe(0o600);
+    expect(files.modeOf(`${WORKSPACE}/docker-compose.yaml`)).toBe(0o600);
+    expect(files.modeOf(WORKSPACE)).toBe(0o700);
   });
 
   it('copies the compose file and the environment file of the kit, privately', async () => {

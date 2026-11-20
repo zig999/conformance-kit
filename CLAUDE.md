@@ -86,12 +86,12 @@ Na dúvida, não pertence. Pare e pergunte.
 
 ## 7. Decisões em aberto (confirmar antes de implementar a parte relacionada)
 
-- **Nomes dos campos da interface pública.** Definidos na Fase 1, que extrai o runner.
-- **Repositório remoto.** O nome `conformance-kit` e o endereço `github:zig999/conformance-kit` estão decididos, mas o repositório remoto ainda não foi criado.
+- **Nomes dos campos da interface pública.** Decididos na Fase 1 e confirmados na Fase 9; estão em `PLANO.md` §4 e no `README.md`.
+- **Repositório remoto.** Criado pelo usuário em `github:zig999/conformance-kit`. Enviar a `main` e criar a tag `v0.1.0` só quando o usuário pedir.
 
 Decididas em 2026-11-20 pelo usuário, conforme o padrão:
 
-- **Token no CTK:** o kit escreve o `Authorization` na `config.json` da cópia temporária privada (modo `0600`), que é removida no desligamento. Não há encaminhador. Por isso o módulo em modo processo escuta onde o CTK o alcança, e não só em loopback.
+- **Token no CTK:** o kit escreve o `Authorization` na `config.json` da cópia temporária privada (modo `0644` dentro de uma pasta `0700`: o CTK roda como outro usuário e não lê `0600`; decidido em 2026-11-20, desvio de projeto do padrão, ver `PLANO.md` §9), que é removida no desligamento. Não há encaminhador. Por isso o módulo em modo processo escuta onde o CTK o alcança, e não só em loopback.
 - **Leitura de YAML:** a dependência `yaml` é a leitora de OAS do kit. Ela substitui o parser de subconjunto de YAML que o `productorder` mantém.
 - **Matriz de conformidade da raiz:** o gerador é um script em `scripts/` deste repositório, que não entra no pacote publicado (sem `bin`, e `files` só tem `dist`). Ele é a última fase do plano.
 

@@ -26,6 +26,8 @@ export interface IFiles {
   readBytes(path: string): Promise<Uint8Array>;
   writeText(path: string, text: string): Promise<void>;
   writePrivateText(path: string, text: string): Promise<void>;
+  /** A file with mode 0644: for the one file the container of the kit, which runs as another user, must read. */
+  writeReadableText(path: string, text: string): Promise<void>;
   makePrivateDirectory(prefix: string): Promise<string>;
   makeDirectory(path: string, mode: number): Promise<void>;
   removeTree(path: string): Promise<void>;

@@ -4,6 +4,7 @@ import type { IFiles } from './ports.js';
 
 const PRIVATE_FILE_MODE = 0o600;
 const PRIVATE_DIRECTORY_MODE = 0o700;
+const READABLE_FILE_MODE = 0o644;
 const ABSENT_CODES: readonly unknown[] = ['ENOENT', 'ENOTDIR'];
 
 function isAbsent(error: unknown): boolean {
@@ -27,6 +28,11 @@ async function listFiles(path: string): Promise<readonly string[]> {
   return entries.filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name));
 }
 
+async function writeReadableText(path: string, text: string): Promise<void> {
+  await writeFile(path, text, { mode: READABLE_FILE_MODE });
+  await chmod(path, READABLE_FILE_MODE);
+}
+
 async function makeDirectory(path: string, mode: number): Promise<void> {
   await mkdir(path);
   await chmod(path, mode);
@@ -44,6 +50,7 @@ export function createNodeFiles(): IFiles {
     readBytes: (path) => readFile(path),
     writeText: (path, text) => writeFile(path, text),
     writePrivateText: (path, text) => writeFile(path, text, { mode: PRIVATE_FILE_MODE }),
+    writeReadableText,
     makePrivateDirectory,
     makeDirectory,
     removeTree: (path) => rm(path, { recursive: true, force: true }),

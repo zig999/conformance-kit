@@ -147,6 +147,17 @@ describe('the exit codes of a run', () => {
     expect(report?.['deviationsApplied']).toEqual(['constraints/tmf999-no-create']);
   });
 
+  it('excludes a failed item whose real title spans lines, when the deviation cites it on one line', async () => {
+    const title = 'POST /thing returns 201 \n\n\t\tEndPoint: http://x:9137/api';
+    const { code, report } = await execute({
+      kitReport: reportWithFailure(title),
+      kitExit: 1,
+      deviations: { 'constraints/tmf999-no-create': 'Excludes `POST /thing returns 201 EndPoint: http://x:9137/api`.' },
+    });
+    expect(code).toBe(0);
+    expect(report?.['deviationsApplied']).toEqual(['constraints/tmf999-no-create']);
+  });
+
   it('names a deviation that covered a difference of the published document', async () => {
     const generated = without(baseDocument(), ['paths', '/product'], 'post');
     const { code, report } = await execute({
@@ -514,7 +525,7 @@ describe('the secrets', () => {
           if (line.includes(' run -T --rm --name ') && !line.includes('--user 0')) {
             const text = world.files.textOf(`${projectDirectoryOf(command)}/config.json`) ?? '';
             expect(text).toContain(AUTHORIZATION);
-            expect(world.files.modeOf(`${projectDirectoryOf(command)}/config.json`)).toBe(0o600);
+            expect(world.files.modeOf(`${projectDirectoryOf(command)}/config.json`)).toBe(0o644);
           }
           return undefined;
         },

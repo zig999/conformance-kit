@@ -19,18 +19,24 @@ Primeira versão com interface pública. A tag ainda **não** foi criada e o rep
 
 ### Comportamento
 
-- O token vai só na `config.json` da cópia temporária privada do CTK (`0600`, removida no desligamento) e é escondido de toda mensagem e de toda saída, mesmo quando um pedaço dele cai no fim de um bloco de saída e o resto no começo do seguinte.
+- O token vai só na `config.json` da cópia temporária privada do CTK (`0644`, dentro da pasta `0700`, removida no desligamento) e é escondido de toda mensagem e de toda saída, mesmo quando um pedaço dele cai no fim de um bloco de saída e o resto no começo do seguinte.
 - O diretório do CTK nunca é alterado; só a pasta de `../tmforum` é aceita.
 - Nenhuma variável `CONFORMANCE_*` chega à migração, ao módulo, ao `docker compose` nem aos testes.
 - A comparação do OAS é semântica nas cinco dimensões do padrão (caminhos, operações, esquemas, estados, códigos de resposta).
 - Dependências de runtime: só `zod` e `yaml`.
 
-### Não verificado, e o que a execução real mostrou
+### Desvios do padrão, por decisão de projeto
 
-- O CTK real foi executado **uma vez**, contra um servidor falso, não contra um módulo. Isso provou a mecânica (docker, cópia privada, `host-gateway`, relatório real, desligamento), não a conformância de ninguém.
-- **A `config.json` da cópia, com modo `0600`, não é legível pelo CTK** (ele roda como o uid 10001). Com `0644` dentro da pasta `0700` o fluxo funciona. O código mantém `0600`, como o padrão manda, e por isso **não roda o CTK real** até o usuário decidir. Ver `PLANO.md` §9.
-- Os identificadores reais dos itens do CTK trazem quebras de linha e o endpoint com a porta: a citação "exatamente como o CTK relata" num desvio precisa de uma decisão (`PLANO.md` §9).
-- A comparação do OAS não foi confrontada com um documento gerado por módulo real.
+O padrão não foi editado e precisa ser revisado por quem o mantém. Detalhes em `PLANO.md` §9.
+
+- **`config.json` da cópia do CTK com modo `0644`** (CNF-12, passo 4 diz `0600`). O CTK roda como o uid 10001 e não lê um `0600` do usuário do host. A pasta da cópia continua `0700` e os outros arquivos, `0600`.
+- **Identificadores de item do CTK com o espaço em branco normalizado** nos dois lados (CNF-06 diz "exatamente como o CTK o relata"). Os títulos reais trazem quebras de linha e tabulações.
+- **Porta do módulo em modo processo:** a de `CONFORMANCE_SERVICE_URL`, conferida como livre, e não uma sorteada: o endpoint, com a porta, faz parte do título de cada item do CTK.
+
+### Verificado e não verificado
+
+- O CTK real (TMF637) foi executado contra um servidor falso, em modo processo e em modo compose, e deu o resultado esperado: código 4 sem desvio e código 0 com um nó de desvio que cita os itens. Isso prova a mecânica (docker, cópia privada, `host-gateway`, rede do compose, relatório real, desligamento), **não a conformância de nenhum módulo**.
+- O kit nunca rodou contra um módulo real, e a comparação do OAS não foi confrontada com um documento gerado por módulo real.
 
 ## Sem versão publicada
 

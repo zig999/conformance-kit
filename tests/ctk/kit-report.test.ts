@@ -76,6 +76,26 @@ describe('reading a Mocha report', () => {
   });
 });
 
+describe('the identifier of an item', () => {
+  const REAL_TITLE =
+    'Tests method POST and path /product  TMF637 Conformance Profile v5.0.0 - API POST Operation Conformance - For Product Resource Tests status \n\n\t\t\t\tEndPoint: http://tmf637-ri:9137/tmf-api/productInventoryManagement/v5';
+  const NORMALIZED =
+    'Tests method POST and path /product TMF637 Conformance Profile v5.0.0 - API POST Operation Conformance - For Product Resource Tests status EndPoint: http://tmf637-ri:9137/tmf-api/productInventoryManagement/v5';
+
+  it('has its runs of white space, line breaks and tabs made one space, and its ends trimmed, as the kit reports it', async () => {
+    expect((await mochaItem(passedTest(REAL_TITLE)))?.identifier).toBe(NORMALIZED);
+  });
+
+  it('is normalized for an item of a Newman report too', async () => {
+    expect((await readFrom(newmanReport(answered(`  ${REAL_TITLE}\n`))))[0]?.identifier).toBe(NORMALIZED);
+  });
+
+  it('makes two titles that differ only in white space one identifier', async () => {
+    const items = await readFrom(mochaReport({ tests: [failedTest('a  b'), failedTest('a\n\tb')] }));
+    expect(failedIdentifiers(items)).toEqual(['a b']);
+  });
+});
+
 describe('reading a Newman report', () => {
   it('passes an item that was answered with all assertions run and passed', async () => {
     const items = await readFrom(newmanReport(answered('create product', [{}, { error: null }])));
@@ -107,8 +127,8 @@ describe('reading a Newman report', () => {
     expect(items[0]?.passed).toBe(false);
   });
 
-  it('names the item by item.name exactly as reported', async () => {
-    expect((await readFrom(newmanReport(answered('  Spaced  Name '))))[0]?.identifier).toBe('  Spaced  Name ');
+  it('names the item by item.name', async () => {
+    expect((await readFrom(newmanReport(answered('Create product'))))[0]?.identifier).toBe('Create product');
   });
 });
 

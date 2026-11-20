@@ -52,6 +52,17 @@ describe('reading a deviation node', () => {
     expect(register.entries[0]?.coveredPointers).toEqual(['/a/with " quote']);
   });
 
+  it('reads an item as the kit reports it once white space is made one space: across lines, with tabs, with runs of spaces', async () => {
+    const register = await registerOf('statement: Excludes `Tests status\n  \tEndPoint:   http://x:1/api` here');
+    expect(register.entries[0]?.excludedItems).toEqual(['Tests status EndPoint: http://x:1/api']);
+    expect(register.isExcluded('Tests status EndPoint: http://x:1/api')).toBe(true);
+  });
+
+  it('does not touch the white space of a pointer', async () => {
+    const register = await registerOf('statement: Covers "/a/with  two spaces" here');
+    expect(register.entries[0]?.coveredPointers).toEqual(['/a/with  two spaces']);
+  });
+
   it('lists each pointer and each item once', async () => {
     const register = await registerOf('statement: Covers "/a" "/a" `x` `x`');
     expect(register.entries[0]).toMatchObject({ coveredPointers: ['/a'], excludedItems: ['x'] });
@@ -104,6 +115,10 @@ describe('refusing a deviation node', () => {
 
   it('refuses a pair of grave accents with nothing between them', async () => {
     await refused('statement: An empty pair `` here').toThrow(/no identifier/);
+  });
+
+  it('refuses a pair of grave accents with only white space between them', async () => {
+    await refused('statement: A blank pair ` ` here').toThrow(/no identifier/);
   });
 
   it('refuses a node with no statement', async () => {

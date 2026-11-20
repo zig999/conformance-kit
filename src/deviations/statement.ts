@@ -1,4 +1,5 @@
 import { ConfigurationError } from '../shared/errors.js';
+import { normalizeIdentifier } from '../shared/identifier.js';
 
 export interface IStatementNames {
   readonly pointers: readonly string[];
@@ -24,7 +25,7 @@ function splitGraveText(statement: string, node: string): IGraveSplit {
   if (parts.length % PAIR === 0) {
     return refuse(`the statement of ${node} holds a grave accent that no second grave accent closes`, node);
   }
-  const items = parts.filter((_, position) => position % PAIR === 1);
+  const items = parts.filter((_, position) => position % PAIR === 1).map(normalizeIdentifier);
   if (items.includes('')) {
     return refuse(`the statement of ${node} holds a pair of grave accents with no identifier between them`, node);
   }

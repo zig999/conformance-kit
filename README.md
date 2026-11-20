@@ -2,7 +2,7 @@
 
 Biblioteca TypeScript que dá aos módulos de vendas a mesma maneira de provar a conformidade com as APIs do TM Forum: compara o OAS gerado com o fixado, roda os testes de contrato do módulo, roda o CTK oficial contra o módulo, julga o resultado com os desvios registrados e grava o `conformance-report.json`.
 
-**Estado:** `v0.1.0` desenvolvida e verificada em testes com executor de comandos e sistema de arquivos de mentira. A tag ainda não foi criada e o repositório remoto ainda não existe. O CTK real foi executado uma vez, contra um servidor falso (que prova a mecânica, não a conformância de um módulo), e mostrou que a `config.json` com modo `0600`, como o padrão manda, **não é legível pelo CTK**: enquanto isso não for decidido, o kit não roda o CTK real. Ver `CHANGELOG.md` e a seção 9 de `PLANO.md`.
+**Estado:** `v0.1.0` desenvolvida e verificada em testes com executor de comandos e sistema de arquivos de mentira, e com o CTK real da TMF637 contra um servidor falso (modo processo e modo compose): isso prova a mecânica, não a conformância de um módulo. A tag ainda não foi criada. Há três desvios de projeto do padrão (modo `0644` da `config.json` da cópia, espaço em branco normalizado nos identificadores de item, porta do módulo em modo processo); ver `CHANGELOG.md` e a seção 9 de `PLANO.md`.
 
 O que ela implementa é `../padrao-conformidade-tmforum.md`. O formato do relatório, as variáveis, os códigos de saída e o formato dos desvios vivem lá, e este arquivo não os repete: leia o padrão antes de adotar a biblioteca.
 
@@ -165,7 +165,7 @@ describe('o documento publicado pela TMF637', () => {
 
 ## Variáveis de ambiente
 
-As do padrão (CNF-04), lidas do `environment` que o módulo passa: `CONFORMANCE_SERVICE_URL`, `CONFORMANCE_ACCESS_TOKEN`, `CONFORMANCE_KIT_DIRECTORY` ou `CONFORMANCE_KIT_DIRECTORY_<TMFNNN>` (obrigatórias para uma API com CTK; nenhuma delas vale para uma API sem CTK) e `CONFORMANCE_START_TIMEOUT_MS`, `CONFORMANCE_RUN_TIMEOUT_MS`, `CONFORMANCE_STEP_TIMEOUT_MS` (opcionais). Variável ausente ou inválida termina com o código 2, nomeando a variável e nunca o valor. `CONFORMANCE_ACCESS_TOKEN` é o valor completo do cabeçalho `Authorization`, com o esquema: o kit o escreve só na `config.json` da cópia temporária privada do CTK e o esconde de toda mensagem e de toda saída.
+As do padrão (CNF-04), lidas do `environment` que o módulo passa: `CONFORMANCE_SERVICE_URL`, `CONFORMANCE_ACCESS_TOKEN`, `CONFORMANCE_KIT_DIRECTORY` ou `CONFORMANCE_KIT_DIRECTORY_<TMFNNN>` (obrigatórias para uma API com CTK; nenhuma delas vale para uma API sem CTK) e `CONFORMANCE_START_TIMEOUT_MS`, `CONFORMANCE_RUN_TIMEOUT_MS`, `CONFORMANCE_STEP_TIMEOUT_MS` (opcionais). Variável ausente ou inválida termina com o código 2, nomeando a variável e nunca o valor. `CONFORMANCE_ACCESS_TOKEN` é o valor completo do cabeçalho `Authorization`, com o esquema: o kit o escreve só na `config.json` da cópia temporária do CTK (modo `0644` dentro de uma pasta `0700`, porque o CTK roda como outro usuário) e o esconde de toda mensagem e de toda saída.
 
 ## Códigos de saída e relatório
 

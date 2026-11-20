@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeIdentifier } from '../shared/identifier.js';
 
 export interface IKitItem {
   readonly identifier: string;
@@ -51,7 +52,7 @@ function isPresent(value: unknown): boolean {
 function mochaItemOf(test: MochaTest): IKitItem {
   const ran = test.state === PASSED_STATE;
   const unmarked = test.fail !== true && test.pending !== true && test.skipped !== true;
-  return { identifier: test.fullTitle ?? test.title, passed: ran && unmarked };
+  return { identifier: normalizeIdentifier(test.fullTitle ?? test.title), passed: ran && unmarked };
 }
 
 function mochaItemsOf(suite: MochaSuite): IKitItem[] {
@@ -64,7 +65,7 @@ function newmanItemOf(execution: NewmanExecution): IKitItem {
   const assertionsPassed = (execution.assertions ?? []).every(
     (assertion) => assertion.skipped !== true && !isPresent(assertion.error),
   );
-  return { identifier: execution.item.name, passed: answered && assertionsPassed };
+  return { identifier: normalizeIdentifier(execution.item.name), passed: answered && assertionsPassed };
 }
 
 /** Reads the items of one parsed CTK report, Mocha or Newman. A document of another shape holds no item. */

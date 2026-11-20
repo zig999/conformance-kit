@@ -72,6 +72,11 @@ export class MemoryFiles implements IFiles {
     this.entries.set(path, { text, mode: 0o600 });
   }
 
+  async writeReadableText(path: string, text: string): Promise<void> {
+    this.check('writeReadableText', path);
+    this.entries.set(path, { text, mode: 0o644 });
+  }
+
   async makePrivateDirectory(prefix: string): Promise<string> {
     this.check('makePrivateDirectory', prefix);
     this.counter += 1;

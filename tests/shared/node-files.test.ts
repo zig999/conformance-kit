@@ -32,6 +32,18 @@ describe('the files of the kit', () => {
     expect(await readFile(path, 'utf8')).toBe('content');
   });
 
+  it('write a file the container of the kit can read, with mode 0644, whatever the umask', async () => {
+    const path = join(root, 'config.json');
+    const previous = process.umask(0o077);
+    try {
+      await files.writeReadableText(path, 'content');
+    } finally {
+      process.umask(previous);
+    }
+    expect(await modeOf(path)).toBe(0o644);
+    expect(await readFile(path, 'utf8')).toBe('content');
+  });
+
   it('create a directory with the mode asked for', async () => {
     const path = join(root, 'reports');
     await files.makeDirectory(path, 0o777);
