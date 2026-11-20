@@ -32,7 +32,7 @@ export interface IProcessRunnerOptions {
   readonly onOutput?: (chunk: string) => void;
 }
 
-const nodeSpawn: SpawnFunction = (program, args, options) => spawn(program, [...args], options);
+export const nodeSpawn: SpawnFunction = (program, args, options) => spawn(program, [...args], options);
 
 function spawnOptionsOf(command: ICommand, signal: AbortSignal | undefined): ISpawnOptions {
   return {

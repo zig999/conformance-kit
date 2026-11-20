@@ -32,7 +32,7 @@ export interface IWorldOptions {
   readonly environment?: Readonly<Record<string, string | undefined>>;
 }
 
-const projectDirectoryOf = (command: ICommand): string => {
+export const projectDirectoryOf = (command: ICommand): string => {
   const at = command.args.indexOf('--project-directory');
   return command.args[at + 1] ?? '';
 };
@@ -41,14 +41,13 @@ export const defaultReport = (): string => mochaReport({ tests: [passedTest('fir
 export const reportWithFailure = (identifier: string): string =>
   mochaReport({ tests: [passedTest('first'), failedTest(identifier)] });
 
-export function ctkWorld(options: IWorldOptions = {}) {
-  const files = new MemoryFiles()
-    .seed(`${KIT_DIRECTORY}/docker-compose.yaml`, 'services:\n  ctk:\n    image: example\n')
-    .seed(`${KIT_DIRECTORY}/.env`, 'HTTP_PROXY=\n')
-    .seed(`${KIT_DIRECTORY}/config.json`, KIT_CONFIGURATION);
-  const log: string[] = [];
+/** What docker answers in a run where everything works, unless the options say otherwise. */
+export function dockerAnswers(
+  files: MemoryFiles,
+  options: IWorldOptions = {},
+): (command: ICommand) => Promise<ICommandResult> {
   const kitReport = 'kitReport' in options ? options.kitReport : defaultReport();
-  const runner = new FakeRunner(async (command) => {
+  return async (command) => {
     const line = [command.program, ...command.args].join(' ');
     for (const handler of options.handlers ?? []) {
       const answered = await handler(command, line);
@@ -69,7 +68,20 @@ export function ctkWorld(options: IWorldOptions = {}) {
       return succeeded(options.containerListing ?? '');
     }
     return succeeded();
-  });
+  };
+}
+
+export function seedKit(files: MemoryFiles): MemoryFiles {
+  return files
+    .seed(`${KIT_DIRECTORY}/docker-compose.yaml`, 'services:\n  ctk:\n    image: example\n')
+    .seed(`${KIT_DIRECTORY}/.env`, 'HTTP_PROXY=\n')
+    .seed(`${KIT_DIRECTORY}/config.json`, KIT_CONFIGURATION);
+}
+
+export function ctkWorld(options: IWorldOptions = {}) {
+  const files = seedKit(new MemoryFiles());
+  const log: string[] = [];
+  const runner = new FakeRunner(dockerAnswers(files, options));
   const settings: ICtkSettings = {
     kitDirectory: KIT_DIRECTORY,
     authorization: AUTHORIZATION,
