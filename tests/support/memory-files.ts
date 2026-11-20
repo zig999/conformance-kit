@@ -50,6 +50,10 @@ export class MemoryFiles implements IFiles {
     return entry.text;
   }
 
+  async readBytes(path: string): Promise<Uint8Array> {
+    return Buffer.from(await this.readText(path), 'utf8');
+  }
+
   async writeText(path: string, text: string): Promise<void> {
     this.check('writeText', path);
     this.entries.set(path, { text, mode: undefined });

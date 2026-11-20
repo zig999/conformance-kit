@@ -45,3 +45,16 @@ describe('the imports of the package', () => {
     expect(sources.filter((source) => source.text.includes('console.')).map((source) => source.path)).toEqual([]);
   });
 });
+
+describe('the two parts of the package', () => {
+  const importsOf = (folder: string): { path: string; specifier: string }[] =>
+    allSpecifiers().filter(({ path }) => path.startsWith(`${folder}/`));
+
+  it('keep the OAS part free of the CTK runner', () => {
+    expect(importsOf('oas').filter(({ specifier }) => /\.\.\/(ctk|layers|run)\//.test(specifier))).toEqual([]);
+  });
+
+  it('keep the CTK runner free of the OAS part', () => {
+    expect(importsOf('ctk').filter(({ specifier }) => /\.\.\/(oas|layers|run)\//.test(specifier))).toEqual([]);
+  });
+});

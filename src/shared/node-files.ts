@@ -41,6 +41,7 @@ async function makePrivateDirectory(prefix: string): Promise<string> {
 export function createNodeFiles(): IFiles {
   return {
     readText: (path) => readFile(path, 'utf8'),
+    readBytes: (path) => readFile(path),
     writeText: (path, text) => writeFile(path, text),
     writePrivateText: (path, text) => writeFile(path, text, { mode: PRIVATE_FILE_MODE }),
     makePrivateDirectory,

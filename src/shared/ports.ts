@@ -21,6 +21,7 @@ export interface ICommandRunner {
 
 export interface IFiles {
   readText(path: string): Promise<string>;
+  readBytes(path: string): Promise<Uint8Array>;
   writeText(path: string, text: string): Promise<void>;
   writePrivateText(path: string, text: string): Promise<void>;
   makePrivateDirectory(prefix: string): Promise<string>;
