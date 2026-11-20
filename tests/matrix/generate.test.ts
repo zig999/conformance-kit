@@ -49,6 +49,14 @@ describe('generating the matrix', () => {
     expect(text).toContain('| good | TMF637 |');
   });
 
+  it('keeps a key with a line break in a report from writing markdown of its own', async () => {
+    await root.module('bad', { 'conformance-report.json': validReport({ ['x\n# injected heading']: 1 }) });
+    await generateMatrix({ root: root.path, output: output(), excluded: [] });
+    const text = await readFile(output(), 'utf8');
+    expect(text.split('\n').some((line) => line.startsWith('# injected'))).toBe(false);
+    expect(text).toContain('inválido');
+  });
+
   it('writes the same file when run twice', async () => {
     await root.module('a', { 'conformance-report.json': validReport() });
     await generateMatrix({ root: root.path, output: output(), excluded: [] });

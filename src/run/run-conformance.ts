@@ -9,7 +9,7 @@ import type { IConformanceRun } from './types.js';
  * `conformance-report.json`. Call it from `backend/scripts/conformance.ts` and set `process.exitCode` to the answer.
  */
 export async function runConformance(run: IConformanceRun): Promise<number> {
-  const interruption = listenForInterruption(nodeSignals);
+  const interruption = listenForInterruption(nodeSignals, run.log);
   const { effects, finish } = createNodeEffects(run, interruption.signal);
   try {
     return await runWith(effects, run, interruption.signal);

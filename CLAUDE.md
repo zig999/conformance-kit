@@ -79,7 +79,7 @@ Na dúvida, não pertence. Pare e pergunte.
 - **Teste antes do código.** Nenhuma mudança entra sem um teste que a prove. A primeira entrega porta os testes dos runners de `../productorder/backend/scripts/` e de `../inventory/backend/src/conformance/`, e só depois o código.
 - **Segurança em primeiro lugar.** Em caso de dúvida, falhe. Um CTK que passa por engano é um defeito grave; um que falha por engano é um defeito de disponibilidade. O kit prefere o segundo.
 - **Stack** igual à do `identity-kit`: Node 24 (`engines.node >=24`), pnpm, TypeScript estrito, Vitest, oxlint, prettier, secretlint e jscpd. Coloque `~/.nvm/versions/node/v24.22.1/bin` no PATH antes de rodar qualquer comando.
-- Regras de código: sem `console`, sem ciclo de import, sem `any`, sem asserção de tipo, sem `process.env`, função com até 30 linhas, até 3 parâmetros, sem número mágico, arquivos em kebab-case. Valem também para `scripts/`.
+- Regras de código: sem `console`, sem ciclo de import, sem `any`, sem asserção de tipo, sem `process.env`, função com até 30 linhas, até 3 parâmetros, sem número mágico, arquivos em kebab-case. Valem também para `scripts/`. Um teste de arquitetura vigia que `src` não lance `Error` comum.
 - **Versão e distribuição:** os módulos instalam o kit por tag git (`github:zig999/conformance-kit#vX.Y.Z`), como dependência de desenvolvimento. A tag aponta para um commit que traz `dist` compilado. Tags são imutáveis e nunca movidas. Toda tag leva uma entrada no `CHANGELOG.md`. Mudança incompatível exige tag nova.
 - Antes de criar função, tipo ou opção pública, cite a regra do padrão ou o uso real em dois módulos que a justifica. Sem fonte, não cria.
 - Mudar o formato do relatório, as variáveis, os códigos de saída ou o formato dos desvios é mudar o padrão, e isso é decisão do usuário.
@@ -87,7 +87,7 @@ Na dúvida, não pertence. Pare e pergunte.
 ## 7. Decisões em aberto (confirmar antes de implementar a parte relacionada)
 
 - **Nomes dos campos da interface pública.** Decididos e publicados na `v0.1.0`; estão no `README.md` (tabela da interface pública) e em `src/index.ts`.
-- **Repositório remoto.** Criado pelo usuário em `github:zig999/conformance-kit`. A `main` e a tag `v0.1.0` foram enviadas em 2026-11-20; tags novas só quando o usuário pedir.
+- **Repositório remoto.** Criado pelo usuário em `github:zig999/conformance-kit`. A `main` e as tags `v0.1.0` e `v0.1.1` foram enviadas em 2026-11-20; tags novas só quando o usuário pedir.
 
 Decididas em 2026-11-20 pelo usuário, conforme o padrão:
 

@@ -23,6 +23,7 @@ export interface INodeEffects {
 export const nodeSignals: ISignalSource = {
   on: (name, handler) => void process.on(name, handler),
   off: (name, handler) => void process.off(name, handler),
+  sendToSelf: (name) => void process.kill(process.pid, name),
 };
 
 /** The real effects: the process runner, the disk, the clock, the network. The output goes through a redacting sink. */

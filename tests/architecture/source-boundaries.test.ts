@@ -58,3 +58,9 @@ describe('the two parts of the package', () => {
     expect(importsOf('ctk').filter(({ specifier }) => /\.\.\/(oas|layers|run)\//.test(specifier))).toEqual([]);
   });
 });
+
+describe('the errors of the kit', () => {
+  it('are never a plain Error: the kit throws errors of its own types', () => {
+    expect(sources.filter((source) => /new Error\(/.test(source.text)).map((source) => source.path)).toEqual([]);
+  });
+});

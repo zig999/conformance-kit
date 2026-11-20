@@ -23,7 +23,7 @@ import {
 } from '../report/record.js';
 import { withoutConformanceVariables } from '../shared/environment.js';
 import type { IRunEffects } from '../shared/effects.js';
-import { ConfigurationError, describeError } from '../shared/errors.js';
+import { ConfigurationError, KitDidNotRunError, describeError } from '../shared/errors.js';
 import { createRedactor, secretsOfAuthorization } from '../shared/redaction.js';
 import { Teardown } from '../shared/teardown.js';
 import { selectApi } from './select-api.js';
@@ -146,7 +146,7 @@ async function runKitLayer(rc: IRunContext, prepared: IPrepared, kit: IPreparedK
   const ctx = ctkContext(rc, prepared, kit);
   try {
     if (rc.signal.aborted) {
-      throw new Error('the run was interrupted before the kit started');
+      throw new KitDidNotRunError('the run was interrupted before the kit started');
     }
     facts.outcome = await startAndRunKit(ctx, kit, prepared.register);
   } catch (error) {

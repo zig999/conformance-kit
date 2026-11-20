@@ -43,6 +43,8 @@ export interface IFiles {
 export interface ISignalSource {
   on(name: NodeJS.Signals, handler: () => void): void;
   off(name: NodeJS.Signals, handler: () => void): void;
+  /** Sends the signal to the process itself. Used once the handlers are gone, to let its default action happen. */
+  sendToSelf(name: NodeJS.Signals): void;
 }
 
 export interface IClock {

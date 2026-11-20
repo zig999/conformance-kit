@@ -2,7 +2,11 @@
 
 Toda tag leva uma entrada. Tags são imutáveis e nunca movidas; mudança incompatível exige tag nova.
 
-## Não publicado (correções do review, para a v0.1.1)
+## v0.1.1 (2026-11-20)
+
+Correções do review do código e do uso real do CTK. A interface pública (`src/index.ts`) não mudou: `ICommandResult` e `IRunEffects`, que ganharam campos, são internos. Instala-se por `pnpm add -D github:zig999/conformance-kit#v0.1.1`.
+
+**Atenção ao migrar:** esta versão é mais estrita que a `v0.1.0`, de propósito, e pode reprovar o que antes passava: a camada 2 compara a propriedade inteira, os `parameters`, os `headers` e o `required` do corpo; o relatório do CTK é conferido contra os totais que declara; gancho falho, `.json` desconhecido e CTK morto por tempo são código 1. Detalhes abaixo.
 
 - **Listagens julgadas só pelo stdout.** `ICommandResult` ganhou `stdout`. `docker compose ps -q` e `docker ps -a -q` com um aviso no stderr (`variable is not set`) faziam o kit recusar partir com "serviços já rodando" ou tentar remover um contêiner que não existe (código 3).
 - **Modo compose:** a recusa de serviço de execução anterior roda depois que os stand-ins sobem e com o ambiente do `up`, porque o arquivo do compose pode precisar das variáveis que eles publicam.
@@ -13,6 +17,10 @@ Toda tag leva uma entrada. Tags são imutáveis e nunca movidas; mudança incomp
 - **Timeout do CTK deixa de parecer término.** O limite de tempo agora é do próprio runner de processos, e o resultado do comando traz `timedOut`. Um CTK morto por `CONFORMANCE_RUN_TIMEOUT_MS` é código 1 e o relatório parcial que ficou na pasta não é lido (antes virava código 130, igual a uma interrupção, e o relatório parcial era julgado).
 - **O módulo é parado com tudo o que ele subiu.** O módulo é lançado como líder do próprio grupo de processos e o desligamento sinaliza o grupo (SIGTERM e, depois do limite, SIGKILL). Antes só o processo lançado era sinalizado: com `pnpm start` ou `sh -c`, o invólucro morria e o servidor ficava com a porta fixa, e a execução seguinte falhava com "port is not free". Um grupo que sobrevive ao SIGKILL agora é desligamento que falhou (código 3). Verificado com processos reais: sinalizar só o invólucro deixa o servidor vivo; sinalizar o grupo derruba os dois. O mecanismo antigo de espera (e o timer que segurava o processo) foi substituído por uma sondagem do grupo no relógio da execução.
 - **A camada 2 compara mais.** Cada propriedade é comparada inteira (restrições, `items`, propriedades em linha, composições), e cada operação compara os `parameters`, os `headers` das respostas e o `required` do corpo. Antes só `type`, `format`, `$ref`, `items` raso e `enum` entravam, e um documento sem `maxLength` ou sem o parâmetro `limit` passava. As 18 OAS de `../tmforum` comparadas com elas mesmas não dão diferença; remoções feitas à mão num documento real são pegas.
+- **`scripts/release.sh` não deixa mais passar verificação quebrada.** Cada `pnpm typecheck|lint|format|test|duplication` é conferida à parte: numa lista com `&&` o `set -e` não parava no meio, e o release seguia para o build mesmo com teste falhando. O script agora recusa a versão que o `CHANGELOG.md` não traz (`## vX.Y.Z`) e, se falhar depois de sair da `main`, volta a ela, limpa, sem deixar `package.json` alterado nem nada preparado.
+- **Segundo Ctrl-C.** O primeiro `SIGINT` ou `SIGTERM` interrompe a execução e avisa o que está acontecendo; o segundo abandona a espera (o desligamento pode levar até o limite de cada passo): os tratadores saem e o sinal vai ao próprio processo, cuja ação padrão o encerra. Antes o segundo sinal era engolido.
+- **A matriz não confia no que os relatórios e as pastas dizem.** Uma chave de relatório ou um nome de pasta com quebra de linha, crase, `#` ou outro marcador de Markdown quebrava a tabela e escrevia Markdown próprio na matriz. Cada célula agora é uma linha só, escapada e limitada a 200 caracteres.
+- **`src/run/run.ts` não lança mais `Error` comum:** a interrupção antes do CTK é `KitDidNotRunError`. Um teste de arquitetura vigia que nenhum arquivo de `src` lance `Error`.
 
 ## v0.1.0 (2026-11-20)
 

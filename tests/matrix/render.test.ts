@@ -60,6 +60,45 @@ describe('the matrix', () => {
     expect(text).toContain('inválido: a \\| b');
   });
 
+  describe('what the reports and the folders say is not trusted', () => {
+    const invalid = (reason: string, module = 'beta'): IMatrixRow => ({
+      module,
+      kind: 'invalid',
+      api: undefined,
+      reason,
+    });
+    const rowsOf = (text: string, module = 'beta'): string[] =>
+      linesOf(text).filter((line) => line.startsWith(`| ${module}`));
+
+    it('keeps a line break in a reason from splitting the row or starting a line of markdown', () => {
+      const text = renderMatrix([invalid('campos inválidos: x\n# heading\r\n- item')], []);
+      expect(rowsOf(text)).toHaveLength(1);
+      expect(linesOf(text).some((line) => line.startsWith('# heading'))).toBe(false);
+      expect(linesOf(text).some((line) => line.startsWith('- item'))).toBe(false);
+    });
+
+    it('escapes what markdown would read as code, emphasis, a link, a tag or a heading', () => {
+      const text = renderMatrix([invalid('a`b*c_d<e>[f](g)#h')], []);
+      expect(text).toContain('a\\`b\\*c\\_d\\<e\\>\\[f\\](g)\\#h');
+    });
+
+    it('escapes the name of a module as well', () => {
+      const text = renderMatrix([{ module: 'my_module*', kind: 'none' }], []);
+      expect(text).toContain('| my\\_module\\* |');
+    });
+
+    it('cuts a reason that is far too long, and says so', () => {
+      const text = renderMatrix([invalid('x'.repeat(1000))], []);
+      const [row] = rowsOf(text);
+      expect(row?.length).toBeLessThan(400);
+      expect(row).toContain('…');
+    });
+
+    it('leaves alone the cells of a valid row', () => {
+      expect(renderMatrix([report()], [])).toContain('| alpha | TMF637 | 5.0.0 | passou |');
+    });
+  });
+
   it('says it was generated, and that it must not be edited by hand, and explains the legend', () => {
     const text = renderMatrix([report()], []);
     expect(text).toMatch(/gerada/i);

@@ -15,7 +15,16 @@ const OUTCOME_WORDS: Readonly<Record<Outcome, string>> = {
   incomplete: 'incompleta',
 };
 
-const cell = (text: string): string => text.replaceAll('|', '\\|');
+const MARKDOWN_SPECIALS = /[\\|`*_<>[\]#]/g;
+const WHITE_SPACE_RUN = /\s+/g;
+const LONGEST_CELL = 200;
+
+/** What a report or a folder name says is not trusted: one line, no markup, and not longer than a cell should be. */
+const cell = (text: string): string => {
+  const oneLine = text.replace(WHITE_SPACE_RUN, ' ').trim();
+  const short = oneLine.length > LONGEST_CELL ? `${oneLine.slice(0, LONGEST_CELL)}…` : oneLine;
+  return short.replace(MARKDOWN_SPECIALS, '\\$&');
+};
 const line = (cells: readonly string[]): string => `| ${cells.map(cell).join(' | ')} |`;
 
 function rowLine(row: IMatrixRow): string {
