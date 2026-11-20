@@ -175,9 +175,11 @@ describe('the private copy of the kit', () => {
 });
 
 describe('emptying the reports as root', () => {
-  it('empties reports/ with a container as root when the removal of the copy fails, then removes the copy', async () => {
+  const REPORTS = `${WORKSPACE}/reports`;
+
+  it('empties reports/ with a container as root when it cannot be removed, then removes the copy', async () => {
     const world = ctkWorld();
-    world.files.failOn('removeTree', WORKSPACE, 1);
+    world.files.failOn('removeTree', REPORTS, 1);
     await runKitContainer(world.context, reach, await register());
     expect(await world.teardown.run()).toBe(0);
     const emptying = world.runner.lines().find((line) => line.includes('--user 0'));
@@ -186,12 +188,37 @@ describe('emptying the reports as root', () => {
     expect(emptying).toContain('/reports -mindepth 1 -delete');
     expect(emptying).toContain(`--name ${CONTAINER}-emptying`);
     expect(world.files.removed).toEqual([WORKSPACE]);
-    expect(world.runner.lines().findIndex((line) => line.includes('--user 0'))).toBeGreaterThan(-1);
+  });
+
+  it('tries reports/ alone first, so that the compose files the emptying needs are still there', async () => {
+    const world = ctkWorld({
+      handlers: [
+        (_command, line) => {
+          if (line.includes('--user 0')) {
+            expect(world.files.textOf(`${WORKSPACE}/docker-compose.yaml`)).toBeDefined();
+            expect(world.files.textOf(`${WORKSPACE}/compose.override.yaml`)).toBeDefined();
+          }
+          return undefined;
+        },
+      ],
+    });
+    world.files.failOn('removeTree', REPORTS, 1);
+    await runKitContainer(world.context, reach, await register());
+    expect(await world.teardown.run()).toBe(0);
+    expect(world.files.removalAttempts[0]).toBe(REPORTS);
+  });
+
+  it('does not run a container as root when reports/ can be removed', async () => {
+    const world = ctkWorld();
+    await runKitContainer(world.context, reach, await register());
+    expect(await world.teardown.run()).toBe(0);
+    expect(world.runner.lines().some((line) => line.includes('--user 0'))).toBe(false);
+    expect(world.files.removed).toEqual([REPORTS, WORKSPACE]);
   });
 
   it('counts a failed teardown when even the emptying fails', async () => {
     const world = ctkWorld({ handlers: [(_c, line) => (line.includes('--user 0') ? failed(1) : undefined)] });
-    world.files.failOn('removeTree', WORKSPACE, 1);
+    world.files.failOn('removeTree', REPORTS, 1);
     await runKitContainer(world.context, reach, await register());
     expect(await world.teardown.run()).toBe(1);
   });
@@ -246,6 +273,11 @@ describe('running the kit', () => {
       uncoveredItems: ['POST /thing returns 201'],
     });
     expect(log.join('\n')).toContain('POST /thing returns 201');
+  });
+
+  it('fails when an item failed even though the kit exits with 0, as the real kit does', async () => {
+    const { outcome } = await runKit({ kitReport: reportWithFailure('POST /thing returns 201') });
+    expect(outcome).toMatchObject({ passed: false, uncoveredItems: ['POST /thing returns 201'] });
   });
 
   it('passes when the failed item is excluded by a deviation', async () => {
@@ -347,6 +379,6 @@ describe('removing the container of the kit', () => {
     const network = lines.indexOf('docker network rm tmf');
     expect(container).toBeGreaterThan(-1);
     expect(network).toBeGreaterThan(container);
-    expect(world.files.removed.at(0)).toBe(WORKSPACE);
+    expect(world.files.removed.at(-1)).toBe(WORKSPACE);
   });
 });

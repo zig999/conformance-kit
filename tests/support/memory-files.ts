@@ -15,6 +15,8 @@ export class MemoryFiles implements IFiles {
   readonly entries = new Map<string, IEntry>();
   readonly directories = new Map<string, number | undefined>();
   readonly removed: string[] = [];
+  /** Every removal that was asked for, including those that failed. */
+  readonly removalAttempts: string[] = [];
   private readonly rules: IFailureRule[] = [];
   private counter = 0;
 
@@ -84,6 +86,7 @@ export class MemoryFiles implements IFiles {
   }
 
   async removeTree(path: string): Promise<void> {
+    this.removalAttempts.push(path);
     this.check('removeTree', path);
     this.removed.push(path);
     for (const key of [...this.entries.keys()]) {

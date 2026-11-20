@@ -50,25 +50,48 @@ describe('starting the module as a process', () => {
     expect(world.spawned).toHaveLength(1);
   });
 
-  it('listens on all addresses, on the free port, and tells the module the public url the kit uses', async () => {
-    const world = moduleWorld({ port: 6123 });
+  it('listens on all addresses, on the port of the service url, and tells the module the public url the kit uses', async () => {
+    const world = moduleWorld();
     await startModule(world.context, processModule(), CTK_HOST);
     expect(world.spawned[0]?.options.env).toMatchObject({
-      PORT: '6123',
+      PORT: '9000',
       LISTEN_ADDRESS: '0.0.0.0',
-      PUBLIC_BASE_URL: `http://${CTK_HOST}:6123`,
+      PUBLIC_BASE_URL: `http://${CTK_HOST}:9000`,
     });
   });
 
-  it('answers how the kit reaches the module: the host port in process mode', async () => {
-    const world = moduleWorld({ port: 6123 });
-    expect(await startModule(world.context, processModule(), CTK_HOST)).toEqual({ kind: 'process', port: 6123 });
+  it('answers how the kit reaches the module: the port of the service url in process mode', async () => {
+    const world = moduleWorld();
+    expect(await startModule(world.context, processModule(), CTK_HOST)).toEqual({ kind: 'process', port: 9000 });
   });
 
-  it('asks the module, from the host, on the free port and the base path of the API', async () => {
-    const world = moduleWorld({ port: 6123 });
+  it('asks the module, from the host, on that port and the base path of the API', async () => {
+    const world = moduleWorld();
     await startModule(world.context, processModule(), CTK_HOST);
-    expect(world.probed).toEqual(['http://localhost:6123/tmf-api/thing/v5']);
+    expect(world.probed).toEqual(['http://localhost:9000/tmf-api/thing/v5']);
+  });
+
+  it.each([
+    ['http://localhost', 80],
+    ['https://module.example', 443],
+    ['http://localhost:8123', 8123],
+  ])('takes the port of the service url %s as %i', async (serviceUrl, port) => {
+    const world = moduleWorld();
+    const context = { ...world.context, settings: { ...world.context.settings, serviceUrl } };
+    await startModule(context, processModule(), CTK_HOST);
+    expect(world.checkedPorts).toEqual([port]);
+    expect(world.spawned[0]?.options.env).toMatchObject({ PORT: String(port) });
+  });
+
+  it('refuses to start, before anything else, when the port of the service url is not free', async () => {
+    const world = moduleWorld({ busyPorts: [9000] });
+    const events: string[] = [];
+    const starting = startModule(world.context, processModule({ standIns: [standIn('catalog', events)] }), CTK_HOST);
+    await expect(starting).rejects.toBeInstanceOf(KitDidNotRunError);
+    await expect(starting).rejects.toThrow(/port 9000 .*CONFORMANCE_SERVICE_URL/);
+    expect(events).toEqual([]);
+    expect(world.runner.calls).toHaveLength(0);
+    expect(world.spawned).toHaveLength(0);
   });
 
   it('never hands a CONFORMANCE_ variable to the migration, to the module or to what it declares', async () => {
@@ -92,7 +115,7 @@ describe('starting the module as a process', () => {
       settings: { ...world.context.settings, environment: { PORT: '1', PATH: '/bin' } },
     };
     await startModule(context, processModule(), CTK_HOST);
-    expect(world.spawned[0]?.options.env).toMatchObject({ PORT: '5555', PATH: '/bin' });
+    expect(world.spawned[0]?.options.env).toMatchObject({ PORT: '9000', PATH: '/bin' });
   });
 
   it('starts the stand-ins first, hands their variables to the module, and closes them after it', async () => {

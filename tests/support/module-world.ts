@@ -6,7 +6,7 @@ export type ProbeAnswer = number | 'down';
 
 export interface IModuleWorldOptions extends IWorldOptions {
   readonly probe?: readonly ProbeAnswer[];
-  readonly port?: number;
+  readonly busyPorts?: readonly number[];
   readonly onSpawn?: (spawned: ISpawned) => void;
 }
 
@@ -16,11 +16,15 @@ export function moduleWorld(options: IModuleWorldOptions = {}) {
   const base = ctkWorld(options);
   const answers = [...(options.probe ?? [200])];
   const probed: string[] = [];
+  const checkedPorts: number[] = [];
   const spawning = createFakeSpawn(options.onSpawn ?? (() => undefined));
   const effects = {
     ...base.context.effects,
     spawn: spawning.spawn,
-    freePort: async () => options.port ?? 5555,
+    portIsFree: async (port: number) => {
+      checkedPorts.push(port);
+      return !(options.busyPorts ?? []).includes(port);
+    },
     probe: {
       status: async (url: string): Promise<number> => {
         probed.push(url);
@@ -33,7 +37,7 @@ export function moduleWorld(options: IModuleWorldOptions = {}) {
     },
   };
   const context = { ...base.context, effects };
-  return { ...base, context, probed, spawned: spawning.spawned };
+  return { ...base, context, probed, checkedPorts, spawned: spawning.spawned };
 }
 
 export const processModule = (overrides: Partial<IProcessModule> = {}): IProcessModule => ({

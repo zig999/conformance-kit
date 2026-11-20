@@ -1,3 +1,4 @@
+import { createServer } from 'node:net';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -62,9 +63,15 @@ describe('the real effects', () => {
     expect(output.join('')).toBe('');
   });
 
-  it('find a free port', async () => {
+  it('tell whether a port is free', async () => {
     const { effects } = createNodeEffects(run, new AbortController().signal);
-    expect(await effects.freePort()).toBeGreaterThan(0);
+    const server = createServer();
+    await new Promise<void>((resolve) => server.listen(0, '0.0.0.0', resolve));
+    const address = server.address();
+    const busy = typeof address === 'object' && address !== null ? address.port : 0;
+    expect(await effects.portIsFree(busy)).toBe(false);
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    expect(await effects.portIsFree(busy)).toBe(true);
   });
 });
 

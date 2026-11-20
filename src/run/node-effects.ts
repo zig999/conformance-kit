@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { createFreePortFinder } from '../shared/free-port.js';
 import { createHttpProbe } from '../shared/http-probe.js';
 import { createNodeFiles } from '../shared/node-files.js';
+import { createPortChecker } from '../shared/port-check.js';
 import type { IRunEffects } from '../shared/effects.js';
 import type { ISignalSource } from '../shared/ports.js';
 import { createProcessRunner, nodeSpawn } from '../shared/process-runner.js';
@@ -40,7 +40,7 @@ export function createNodeEffects(run: IConformanceRun, signal: AbortSignal): IN
       randomId: () => randomBytes(ID_BYTES).toString('hex'),
       temporaryDirectory: tmpdir(),
       spawn: nodeSpawn,
-      freePort: createFreePortFinder(),
+      portIsFree: createPortChecker(),
       probe: createHttpProbe(),
     },
     finish: () => sink.flush(),

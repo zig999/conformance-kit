@@ -12,7 +12,7 @@ export interface IRunEffects {
   readonly temporaryDirectory: string;
   /** Starts a process that stays up (the module under test). */
   readonly spawn: SpawnFunction;
-  /** A port that is free on all addresses of the host. */
-  readonly freePort: () => Promise<number>;
+  /** Whether a port is free on all addresses of the host. */
+  readonly portIsFree: (port: number) => Promise<boolean>;
   readonly probe: IHttpProbe;
 }

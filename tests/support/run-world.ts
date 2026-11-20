@@ -83,7 +83,7 @@ export function runWorld(options: IRunWorldOptions = {}) {
     randomId: () => 'a1b2c3',
     temporaryDirectory: '/tmp',
     spawn: spawning.spawn,
-    freePort: async () => 5555,
+    portIsFree: async () => true,
     probe: {
       status: async () => {
         const answer = answers.length > 1 ? answers.shift() : answers[0];

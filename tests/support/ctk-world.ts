@@ -105,7 +105,7 @@ export function ctkWorld(options: IWorldOptions = {}) {
       spawn: () => {
         throw new Error('no process is expected to start');
       },
-      freePort: async () => 5555,
+      portIsFree: async () => true,
       probe: { status: async () => 200 },
     },
     settings,

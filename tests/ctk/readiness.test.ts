@@ -3,7 +3,7 @@ import { waitUntilAnswering } from '../../src/ctk/readiness.js';
 import { KitDidNotRunError } from '../../src/shared/errors.js';
 import { API_BASE_PATH, moduleWorld, type ProbeAnswer } from '../support/module-world.js';
 
-const URL_PROBED = `http://localhost:5555${API_BASE_PATH}`;
+const URL_PROBED = `http://localhost:9000${API_BASE_PATH}`;
 
 const wait = (probe: readonly ProbeAnswer[], ended: () => string | undefined = () => undefined) => {
   const world = moduleWorld({ probe });

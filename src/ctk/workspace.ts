@@ -37,17 +37,20 @@ async function copyKitFiles(ctx: ICtkContext, workspace: IWorkspace, reach: KitR
   await files.makeDirectory(workspace.reportsDirectory, REPORTS_MODE);
 }
 
+/**
+ * The files the CTK writes in reports/ belong to the user of the container, and a folder it creates there may not
+ * be removable by the user of the host. So reports/ goes first, alone: when it cannot be removed it is emptied by a
+ * container as root, which needs the compose files of the copy, so nothing else may have been removed yet.
+ */
 async function removeWorkspace(ctx: ICtkContext, workspace: IWorkspace): Promise<void> {
   const { files, runner } = ctx.effects;
   try {
-    await files.removeTree(workspace.root);
-    return;
+    await files.removeTree(workspace.reportsDirectory);
   } catch {
-    // The files in reports/ may belong to the user of the container; empty them as root and try again.
-  }
-  const emptied = await runner.run(emptyReports(ctx.settings, workspace));
-  if (emptied.exitCode !== SUCCESS_EXIT_CODE) {
-    throw new KitDidNotRunError('reports/ of the private copy could not be emptied as root');
+    const emptied = await runner.run(emptyReports(ctx.settings, workspace));
+    if (emptied.exitCode !== SUCCESS_EXIT_CODE) {
+      throw new KitDidNotRunError('reports/ of the private copy could not be emptied as root');
+    }
   }
   await files.removeTree(workspace.root);
 }
