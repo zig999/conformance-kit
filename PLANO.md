@@ -46,9 +46,44 @@ O `productcatalog` é o mais distante do padrão: usa `CONFORMANCE_API_URL` (e n
 
 ## 4. Interface pública
 
-Os nomes dos campos são definidos na Fase 1 e confirmados na Fase 9. O conteúdo que o módulo informa já está no padrão (seção CNF-09): API e versão, OAS fixado e a função que devolve o OAS gerado, testes das camadas 1 e 3, nó de conformidade, pasta do CTK e o modo de subir o módulo (com o comando de migração, o caminho base da API e os stand-ins).
+Nomes definidos na Fase 1 (2026-11-20), a partir da leitura dos runners de `productorder` e `inventory`, e confirmados na Fase 9. O conteúdo que o módulo informa é o da tabela de CNF-09. A interface pública é só o que `src/index.ts` exporta; o resto é interno e os testes o alcançam por caminho relativo.
 
 Orientação de desenho: um objeto declarativo por API e uma função que o executa. Um módulo com mais de uma API passa um objeto por API e a biblioteca grava um relatório por API.
+
+### Execução (camadas 1 a 4)
+
+| Nome | O que é | Fonte que o justifica |
+|---|---|---|
+| `runConformance(run)` | Roda as camadas 1 a 4 de cada API de `run.apis`, grava um relatório por API e devolve o código de saída 0 a 5 | CNF-04, CNF-09, CNF-11; `productorder` `conformance-run.ts`, `inventory` `conformance-run.ts` |
+| `IConformanceRun` | `environment` (o ambiente do processo, passado pelo módulo), `moduleDirectory` (o `backend/`, onde rodam os testes e se grava o relatório), `apis`, `log(message)` e `output?(chunk)` | CNF-04 (variáveis), CNF-07 (onde grava); os dois módulos usam a raiz do backend |
+| `IApiConformance` | Uma API: `api`, `openapiVersion`, `pinnedOas`, `generatedOas()`, `pinnedCopyTests`, `answerValidationTests`, `conformanceNode`, `specificationRoot`, `kit` (`tmforumDirectory`, `folder`), `module`, `severalApisInModule?` | tabela de CNF-09 |
+| `IModuleUnderTest` | `IProcessModule` (`mode: 'process'`, `migration?`, `start`, `apiBasePath`, `environment(runtime)`, `standIns?`) ou `IComposeModule` (`mode: 'compose'`, `directory`, `service`, `apiBasePath`, `standIns?`) | CNF-13; `inventory` `module-process.ts`, `productorder` `conformance-commands.ts` (`api-kit`, perfil `kit`) |
+| `IModuleCommand` | `program`, `args`, `cwd` de um comando do módulo (migração e partida) | `inventory` `applyMigrations` e `startModule` |
+| `IModuleRuntime` | O que o kit entrega ao módulo para montar o ambiente: `listenAddress`, `port`, `publicUrl`, `standIns` (variáveis que os stand-ins publicam) | CNF-13 ("o runner define endereço de escuta, porta, URL pública e endereços dos stand-ins") |
+| `IStandIn` e `IStandInHandle` | `start()` devolve `environment` (variáveis para o módulo) e `close()` | CNF-13; `inventory` `catalog-stand-in.ts` |
+| `EXIT_*` | Os seis códigos de CNF-11 | CNF-11 |
+
+O nome de cada variável de ambiente do módulo (porta, endereço de escuta, URL pública) é do módulo: o kit só entrega os valores por `IModuleRuntime`.
+
+### OAS (camadas 1 e 2)
+
+Usados pelos testes de contrato de todo módulo (CNF-01 e CNF-02), além de pelo próprio runner.
+
+| Nome | O que é |
+|---|---|
+| `readOasFile(path)` | Lê um OAS em YAML ou JSON e devolve o documento |
+| `sha256OfFile(path)` | Resumo SHA-256 do arquivo, para o teste de igualdade da cópia fixada (CNF-01) |
+| `compareOas(pinned, generated)` | Devolve as diferenças como lista de `IOasDifference` (`pointer`, `kind`) (CNF-02) |
+| `readDeviationRegister(specificationRoot, conformanceNode)` | Lê o nó de conformidade e os nós de desvio e devolve `IDeviationRegister` (`entries`, `isCovered`, `isExcluded`), para o teste do CNF-02 saber que ponteiro está coberto |
+
+### Decisões de desenho dentro do que o padrão deixa em aberto
+
+- **Erros.** `ConformanceError` é a base; `ConfigurationError` leva ao código 2 e `KitDidNotRunError` ao código 1.
+- **Relatório de módulo com várias APIs.** `severalApisInModule: true` troca `conformance-report.json` por `conformance-report.<api em minúsculas>.json`, como CNF-07.
+- **Código de saída com várias APIs.** Vale o primeiro da ordem 2, 1, 3, 4, 5 entre todas as APIs, e 0 se nenhuma tem código.
+- **Origem do CTK no modo processo.** O padrão diz que o `config.json` do CTK tem a origem trocada. O kit lê o nome de host que o `config.json` já usa (por exemplo `tmf637-ri`), mantém o caminho da API, aponta `extra_hosts` desse nome para `host-gateway` e usa a porta em que o módulo escuta. No modo compose usa a origem de `CONFORMANCE_SERVICE_URL`.
+- **Porta do módulo em modo processo.** O kit pede ao sistema uma porta livre e a usa; a porta de `CONFORMANCE_SERVICE_URL` vale só no modo compose. O módulo escuta em `0.0.0.0` e o kit sonda `protocolo//host de CONFORMANCE_SERVICE_URL:porta livre`.
+- **Modo da pasta `reports/` da cópia temporária.** A cópia é `0700` e seus arquivos `0600`; só `reports/` é `0777`, porque o usuário do contêiner pode não ser o do host, e fica inalcançável a outros usuários pela pasta pai `0700` (como no `inventory`).
 
 ## 5. Stack
 
@@ -65,7 +100,7 @@ Cada fase começa pelos testes. A coluna "casos" lista o que os testes provam.
 | Fase | Entrega | Casos de teste |
 |---|---|---|
 | 0 | Esqueleto do projeto, configuração, testes de arquitetura e documentos. **Concluída.** | `typecheck`, `lint`, `format`, `test`, `duplication`, `build` e `secrets` passam |
-| 1 | Tipos de erro, executor de processo filho, sistema de arquivos privado e interrupção, todos injetáveis. Nomes da interface pública. | Processo que termina com código 0 e diferente de zero; processo que não existe (código 127); processo morto por sinal (130); interrupção por SIGINT e SIGTERM aborta só o que é interrompível; arquivo privado criado com `0600` e diretório com `0700`; remoção de árvore; nenhum teste chama processo ou docker de verdade |
+| 1 | Tipos de erro, executor de processo filho, sistema de arquivos privado e interrupção, todos injetáveis. Nomes da interface pública. **Concluída em 2026-11-20.** Nomes da interface em §4. Executor de processo recebe `spawn` injetável, sem docker nem processo real nos testes. | Processo que termina com código 0 e diferente de zero; processo que não existe (código 127); processo morto por sinal (130); interrupção por SIGINT e SIGTERM aborta só o que é interrompível; arquivo privado criado com `0600` e diretório com `0700`; remoção de árvore; nenhum teste chama processo ou docker de verdade |
 | 2 | Leitura do relatório do CTK (Mocha e Newman) e veredito por item. | Mocha: item `passed`, `failed`, `pending`, `skipped` e gancho ignorado, suítes aninhadas; Newman: com resposta, sem resposta, com erro de requisição, asserção pulada e falha; identificador do item como o CTK o relata; pasta sem relatório; relatório sem item; JSON inválido; vários arquivos juntos |
 | 3 | Leitura dos nós de desvio e aplicação ao veredito. | Nó válido com ponteiros entre aspas duplas e itens entre acentos graves; `statement` em escalar simples, `>` e `\|`; `statement` entre aspas ou em formato de lista (recusado); crase ou aspas que não fecham; par de acentos vazio; ausência de frontmatter; nó ausente; identificador fora do padrão; item falho coberto e não coberto; ponteiro coberto e não coberto |
 | 4 | Relatório gravado com schema estrito, códigos de saída 0 a 5 e precedência. | Schema recusa chave desconhecida, resultado fora de `passed`/`failed`/`not-run` e desvio repetido; relatório de camada que não rodou fica `not-run`; cada código de saída; precedência 2, 1, 3, 4, 5; 3 vale sobre 0; relatório gravado também quando a configuração é recusada; relatório não gravado vira 5 |
