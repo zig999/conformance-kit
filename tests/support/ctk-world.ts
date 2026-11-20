@@ -12,6 +12,7 @@ export const AUTHORIZATION = 'Bearer top-secret-token-value';
 export const CTK_HOST = 'tmf999-ri';
 export const CTK_PATH = '/tmf-api/thing/v5';
 export const UNIQUE_ID = 'a1b2c3';
+export const SERVICE_URL = 'http://localhost:9000';
 export const CONTAINER = `conformance-ctk-${UNIQUE_ID}`;
 
 export const KIT_CONFIGURATION = JSON.stringify({
@@ -72,24 +73,32 @@ export function ctkWorld(options: IWorldOptions = {}) {
   const settings: ICtkSettings = {
     kitDirectory: KIT_DIRECTORY,
     authorization: AUTHORIZATION,
+    serviceUrl: SERVICE_URL,
+    startTimeoutMillis: 3333,
     runTimeoutMillis: 111,
     stepTimeoutMillis: 22,
     environment: options.environment ?? { PATH: '/bin' },
   };
+  const clock = new FakeClock();
   const controller = new AbortController();
   const teardown = new Teardown((message) => log.push(message));
   const context: ICtkContext = {
     effects: {
       runner,
       files,
-      clock: new FakeClock(),
+      clock,
       log: (message) => log.push(message),
       randomId: () => UNIQUE_ID,
       temporaryDirectory: '/tmp',
+      spawn: () => {
+        throw new Error('no process is expected to start');
+      },
+      freePort: async () => 5555,
+      probe: { status: async () => 200 },
     },
     settings,
     teardown,
     signal: controller.signal,
   };
-  return { files, runner, log, context, teardown, interrupt: () => controller.abort(), readKitItems };
+  return { files, runner, log, clock, context, teardown, interrupt: () => controller.abort(), readKitItems };
 }

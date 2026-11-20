@@ -21,6 +21,7 @@ export interface ISpawnOptions {
 export interface IChildProcess extends EventEmitter {
   readonly stdout: Readable | null;
   readonly stderr: Readable | null;
+  kill(signal?: NodeJS.Signals): boolean;
 }
 
 export type SpawnFunction = (program: string, args: readonly string[], options: ISpawnOptions) => IChildProcess;

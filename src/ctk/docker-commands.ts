@@ -1,5 +1,6 @@
 import type { Environment, ICommand } from '../shared/ports.js';
 import type { ICtkSettings } from './context.js';
+import type { IComposeModule } from './module-types.js';
 
 export const KIT_NETWORK = 'tmf';
 export const KIT_SERVICE = 'ctk';
@@ -13,6 +14,7 @@ export const REPORTS_DIRECTORY = 'reports';
 const DOCKER = 'docker';
 const ROOT_USER = '0';
 const CONTAINER_REPORTS = '/reports';
+const MILLIS_PER_SECOND = 1000;
 
 export interface IWorkspace {
   readonly root: string;
@@ -83,4 +85,22 @@ export function emptyReports(settings: IStepSettings, workspace: IWorkspace): IC
 
 export function composeServices(settings: IStepSettings, directory: string): ICommand {
   return docker(settings, ['compose', '--profile', MODULE_PROFILE, 'ps', '-q'], { cwd: directory });
+}
+
+/** `docker compose --profile kit up -d --build --wait <service>`, with the variables the stand-ins publish. */
+export function modulesUp(settings: ICtkSettings, module: IComposeModule, env: Environment): ICommand {
+  const seconds = String(Math.ceil(settings.startTimeoutMillis / MILLIS_PER_SECOND));
+  const wait = ['--wait', '--wait-timeout', seconds];
+  const args = ['compose', '--profile', MODULE_PROFILE, 'up', '-d', '--build', ...wait, module.service];
+  return docker(settings, args, {
+    cwd: module.directory,
+    env,
+    interruptible: true,
+    timeoutMillis: settings.startTimeoutMillis,
+  });
+}
+
+export function modulesDown(settings: ICtkSettings, module: IComposeModule, env: Environment): ICommand {
+  const args = ['compose', '--profile', MODULE_PROFILE, 'down', '--remove-orphans'];
+  return docker(settings, args, { cwd: module.directory, env });
 }

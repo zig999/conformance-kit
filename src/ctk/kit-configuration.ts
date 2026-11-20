@@ -67,3 +67,8 @@ export function kitConfigurationFor(kitText: string, reach: KitReach, authorizat
   const text = JSON.stringify({ ...kit, url: urlFor(kitUrl, reach), headers }, null, JSON_INDENT);
   return { text, hostName: kitUrl.hostname };
 }
+
+/** The host name the config.json of the kit uses for the module, read before the module starts. */
+export function kitHostNameOf(kitText: string): string {
+  return parsedUrl(parsedConfiguration(kitText).url).hostname;
+}

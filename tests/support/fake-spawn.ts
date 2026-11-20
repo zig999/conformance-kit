@@ -12,6 +12,17 @@ export interface ISpawned {
 export class FakeChild extends EventEmitter implements IChildProcess {
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
+  readonly signals: string[] = [];
+  /** The signals that make this child exit. By default both SIGTERM and SIGKILL do. */
+  exitsOn = new Set<string>(['SIGTERM', 'SIGKILL']);
+
+  kill(signal: NodeJS.Signals = 'SIGTERM'): boolean {
+    this.signals.push(signal);
+    if (this.exitsOn.has(signal)) {
+      this.finish(null, signal);
+    }
+    return true;
+  }
 
   finish(code: number | null, signal: NodeJS.Signals | null = null): void {
     this.stdout.end();

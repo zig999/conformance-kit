@@ -42,3 +42,8 @@ export interface IClock {
   now(): number;
   sleep(millis: number, signal?: AbortSignal): Promise<void>;
 }
+
+/** Asks a URL for its status. It rejects when nothing answers. */
+export interface IHttpProbe {
+  status(url: string, timeoutMillis: number, signal: AbortSignal): Promise<number>;
+}
