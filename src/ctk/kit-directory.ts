@@ -9,12 +9,12 @@ export interface IExpectedKit {
 }
 
 /** CNF-04: only the folder held in the tmforum directory is accepted, never a copy with the same name. */
-export function assertExpectedKitDirectory(kitDirectory: string, expected: IExpectedKit): string {
+export function assertExpectedKitDirectory(kitDirectory: string, expected: IExpectedKit, variable: string): string {
   const held = resolve(expected.tmforumDirectory, expected.folder);
   if (resolve(kitDirectory) !== held) {
     throw new ConfigurationError(
-      `CONFORMANCE_KIT_DIRECTORY must name the kit folder ${expected.folder} held in the tmforum directory`,
-      { variable: 'CONFORMANCE_KIT_DIRECTORY' },
+      `${variable} must name the kit folder ${expected.folder} held in the tmforum directory`,
+      { variable },
     );
   }
   return held;

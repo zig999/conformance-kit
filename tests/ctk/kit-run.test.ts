@@ -167,10 +167,19 @@ describe('the private copy of the kit', () => {
     expect(world.files.removed).toContain(WORKSPACE);
   });
 
-  it('refuses a kit folder that lacks a file the kit needs', async () => {
+  it('refuses a kit folder that lacks its compose file', async () => {
+    const world = ctkWorld();
+    world.files.entries.delete(`${KIT_DIRECTORY}/docker-compose.yaml`);
+    await expect(runKitContainer(world.context, reach, await register())).rejects.toBeInstanceOf(KitDidNotRunError);
+  });
+
+  it('copies the .env of the kit only when it exists', async () => {
     const world = ctkWorld();
     world.files.entries.delete(`${KIT_DIRECTORY}/.env`);
-    await expect(runKitContainer(world.context, reach, await register())).rejects.toBeInstanceOf(KitDidNotRunError);
+    const outcome = await runKitContainer(world.context, reach, await register());
+    expect(outcome.passed).toBe(true);
+    expect(world.files.textOf(`${WORKSPACE}/.env`)).toBeUndefined();
+    expect(world.files.textOf(`${WORKSPACE}/docker-compose.yaml`)).toBeDefined();
   });
 });
 

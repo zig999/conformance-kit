@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { kitConfigurationFor } from '../../src/ctk/kit-configuration.js';
-import { KitDidNotRunError } from '../../src/shared/errors.js';
+import { ConfigurationError } from '../../src/shared/errors.js';
 import { AUTHORIZATION, CTK_HOST, CTK_PATH, KIT_CONFIGURATION } from '../support/ctk-world.js';
 
 const parsed = (text: string): { url: string; headers: Record<string, string>; payloads: unknown } => JSON.parse(text);
@@ -12,8 +12,8 @@ describe('the configuration of the kit', () => {
     expect(result.hostName).toBe(CTK_HOST);
   });
 
-  it('takes the origin of the service, and keeps the path of the API, in compose mode', () => {
-    const reach = { kind: 'compose', origin: 'http://api-kit:3000' } as const;
+  it('takes the service and the internal port the module gave, and keeps the path of the API, in compose mode', () => {
+    const reach = { kind: 'compose', host: 'api-kit', port: 3000 } as const;
     expect(parsed(kitConfigurationFor(KIT_CONFIGURATION, reach, AUTHORIZATION).text).url).toBe(
       `http://api-kit:3000${CTK_PATH}`,
     );
@@ -49,7 +49,7 @@ describe('the configuration of the kit', () => {
     ['with a url that is not http', '{"url": "ftp://bad-host-xyz/api"}'],
   ])('refuses a configuration %s, as a kit that cannot run, without quoting it', (_name, text) => {
     const refusing = () => kitConfigurationFor(text, { kind: 'process', port: 1 }, AUTHORIZATION);
-    expect(refusing).toThrow(KitDidNotRunError);
+    expect(refusing).toThrow(ConfigurationError);
     expect(refusing).not.toThrow(/xyz/);
   });
 });

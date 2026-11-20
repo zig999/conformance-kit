@@ -24,4 +24,5 @@ export interface ICtkContext {
 
 /** How the kit reaches the module: a process on the host, or a service of the compose in the same network. */
 export type KitReach =
-  { readonly kind: 'process'; readonly port: number } | { readonly kind: 'compose'; readonly origin: string };
+  | { readonly kind: 'process'; readonly port: number }
+  | { readonly kind: 'compose'; readonly host: string; readonly port: number };

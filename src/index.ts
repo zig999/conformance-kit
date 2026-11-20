@@ -1,5 +1,5 @@
 export { runConformance } from './run/run-conformance.js';
-export type { IApiConformance, IConformanceRun } from './run/types.js';
+export type { IApiConformance, IApiWithKit, IApiWithoutKit, IConformanceRun } from './run/types.js';
 export type {
   IComposeModule,
   IModuleCommand,

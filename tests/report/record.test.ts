@@ -38,6 +38,15 @@ describe('the schema of the conformance report', () => {
     expect(ConformanceReportSchema.safeParse(report).success).toBe(false);
   });
 
+  it('accepts not-applicable in conformanceKit, and only there', () => {
+    const results = { ...valid().results, conformanceKit: 'not-applicable' };
+    expect(ConformanceReportSchema.safeParse({ ...valid(), results }).success).toBe(true);
+    for (const key of ['pinnedCopyIdentity', 'publishedDocumentComparison', 'answerValidation']) {
+      const misplaced = { ...valid().results, [key]: 'not-applicable' };
+      expect(ConformanceReportSchema.safeParse({ ...valid(), results: misplaced }).success).toBe(false);
+    }
+  });
+
   it('refuses a missing key', () => {
     const { deviationsApplied: _omitted, ...incomplete } = valid();
     expect(ConformanceReportSchema.safeParse(incomplete).success).toBe(false);

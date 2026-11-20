@@ -16,6 +16,7 @@ import {
   ENVIRONMENT_SENTINEL,
   PINNED_TEST,
   REPORT_PATH,
+  kitApi,
   runWorld,
   validEnvironment,
   type IRunWorldOptions,
@@ -315,12 +316,6 @@ describe('where the report goes', () => {
     expect(files.textOf(REPORT_PATH)).toBeDefined();
   });
 
-  it('is conformance-report.<api>.json for a module with several APIs, one report per API', async () => {
-    const { files } = await execute({ api: { severalApisInModule: true } });
-    expect(files.textOf('/backend/conformance-report.tmf999.json')).toBeDefined();
-    expect(files.textOf(REPORT_PATH)).toBeUndefined();
-  });
-
   it('writes the report as the strict format of the standard, and nothing else', async () => {
     const { report } = await execute();
     expect(Object.keys(report ?? {}).toSorted()).toEqual([
@@ -330,6 +325,147 @@ describe('where the report goes', () => {
       'openapiVersion',
       'results',
     ]);
+  });
+});
+
+describe('an API without a kit in tmforum', () => {
+  const NO_KIT_ENVIRONMENT = { PATH: '/bin' };
+
+  it('runs layers 1 to 3, runs no kit, needs no variable of the kit and exits with 0', async () => {
+    const { code, report, runner, spawned } = await execute({ withoutKit: true, environment: NO_KIT_ENVIRONMENT });
+    expect(code).toBe(0);
+    expect(report?.['results']).toEqual({ ...RESULTS_PASSED, conformanceKit: 'not-applicable' });
+    expect(runner.lines().every((line) => line.startsWith('pnpm exec vitest'))).toBe(true);
+    expect(spawned).toHaveLength(0);
+  });
+
+  it('still records a failed layer, and still exits with 0, because the layers do not change the exit code', async () => {
+    const { code, report } = await execute({
+      withoutKit: true,
+      environment: NO_KIT_ENVIRONMENT,
+      failingTests: [PINNED_TEST],
+    });
+    expect(code).toBe(0);
+    expect(report?.['results']).toEqual({
+      ...RESULTS_PASSED,
+      pinnedCopyIdentity: 'failed',
+      conformanceKit: 'not-applicable',
+    });
+  });
+
+  it('exits with 5 when the report cannot be written', async () => {
+    const world = runWorld({ withoutKit: true, environment: NO_KIT_ENVIRONMENT });
+    world.files.failOn('writeText', 'conformance-report');
+    expect(await runWith(world.effects, world.run, world.controller.signal)).toBe(5);
+  });
+
+  it('exits with 2 and records not-run, not not-applicable, when a timeout is refused', async () => {
+    const { code, report } = await execute({
+      withoutKit: true,
+      environment: { ...NO_KIT_ENVIRONMENT, CONFORMANCE_RUN_TIMEOUT_MS: 'soon' },
+    });
+    expect(code).toBe(2);
+    expect(report?.['results']).toEqual(NOT_RUN);
+  });
+
+  it('exits with 1 when the run was interrupted, with the kit still not-applicable', async () => {
+    const world = runWorld({ withoutKit: true, environment: NO_KIT_ENVIRONMENT });
+    world.controller.abort(new KitDidNotRunError('interrupted by SIGINT'));
+    expect(await runWith(world.effects, world.run, world.controller.signal)).toBe(1);
+    expect(world.reportOf()?.['results']).toEqual({ ...NOT_RUN, conformanceKit: 'not-applicable' });
+  });
+});
+
+describe('a module with several APIs', () => {
+  const environmentFor = (code: string, directory: string) => {
+    const { CONFORMANCE_KIT_DIRECTORY: _single, ...rest } = validEnvironment();
+    return { ...rest, [`CONFORMANCE_KIT_DIRECTORY_${code}`]: directory };
+  };
+  const several = (extra: Partial<IRunWorldOptions> = {}): IRunWorldOptions => ({
+    extraApis: [kitApi('TMF998', 'tmf998-v1.0.0-ctk-1.0.0')],
+    environment: environmentFor('TMF999', KIT_DIRECTORY),
+    ...extra,
+  });
+
+  it('runs the API whose code it is given, however the code is written, and writes its report with the code in the name', async () => {
+    const { code, files } = await execute(several({ apiCode: 'tmf999' }));
+    expect(code).toBe(0);
+    expect(files.textOf('/backend/conformance-report.tmf999.json')).toBeDefined();
+    expect(files.textOf(REPORT_PATH)).toBeUndefined();
+    expect(files.textOf('/backend/conformance-report.tmf998.json')).toBeUndefined();
+  });
+
+  it('takes the folder of the kit from the variable of the API, and ignores the single one', async () => {
+    const environment = { ...environmentFor('TMF999', KIT_DIRECTORY), CONFORMANCE_KIT_DIRECTORY: '/elsewhere' };
+    const { code } = await execute(several({ apiCode: 'TMF999', environment }));
+    expect(code).toBe(0);
+  });
+
+  it('refuses, with 2, the folder of the kit of the other API in the variable of this one', async () => {
+    const environment = environmentFor('TMF999', '/tmforum/tmf998-v1.0.0-ctk-1.0.0');
+    const { code, files, runner } = await execute(several({ apiCode: 'TMF999', environment }));
+    expect(code).toBe(2);
+    expect(JSON.parse(files.textOf('/backend/conformance-report.tmf999.json') ?? '{}').results).toEqual(NOT_RUN);
+    expect(runner.calls).toHaveLength(0);
+  });
+
+  it('names the variable of the API when it is absent', async () => {
+    const { code, log } = await execute(several({ apiCode: 'TMF999', environment: { PATH: '/bin' } }));
+    expect(code).toBe(2);
+    expect(log.join('\n')).toContain('CONFORMANCE_KIT_DIRECTORY_TMF999');
+  });
+
+  it('refuses, with 2 and no report, a run that names no API', async () => {
+    const { code, files, runner, log } = await execute(several());
+    expect(code).toBe(2);
+    expect(runner.calls).toHaveLength(0);
+    expect([...files.entries.keys()].filter((path) => path.includes('conformance-report'))).toEqual([]);
+    expect(log.join('\n')).toMatch(/TMF999, TMF998/);
+  });
+
+  it('refuses, with 2 and no report, a code that no API has', async () => {
+    const { code, files, log } = await execute(several({ apiCode: 'tmf000' }));
+    expect(code).toBe(2);
+    expect([...files.entries.keys()].filter((path) => path.includes('conformance-report'))).toEqual([]);
+    expect(log.join('\n')).toContain('TMF000');
+  });
+});
+
+describe('a module with one API', () => {
+  it('runs without a code, and writes conformance-report.json', async () => {
+    const { code, files } = await execute();
+    expect(code).toBe(0);
+    expect(files.textOf(REPORT_PATH)).toBeDefined();
+  });
+
+  it('accepts its own code, in any case', async () => {
+    expect((await execute({ apiCode: 'tmf999' })).code).toBe(0);
+  });
+
+  it('refuses, with 2, a code that is not its own', async () => {
+    const { code, runner } = await execute({ apiCode: 'tmf632' });
+    expect(code).toBe(2);
+    expect(runner.calls).toHaveLength(0);
+  });
+});
+
+describe('the config.json of the kit', () => {
+  it.each([
+    ['is not JSON', 'not json'],
+    ['has no url', '{"headers": {}}'],
+    ['has a url that is not http', '{"url": "ftp://x/api"}'],
+  ])('refuses the run with 2, and records every layer as not-run, when it %s', async (_name, text) => {
+    const world = runWorld();
+    world.files.seed(`${KIT_DIRECTORY}/config.json`, text);
+    expect(await runWith(world.effects, world.run, world.controller.signal)).toBe(2);
+    expect(world.reportOf()?.['results']).toEqual(NOT_RUN);
+    expect(world.runner.calls).toHaveLength(0);
+  });
+
+  it('refuses the run with 2 when the kit folder has no config.json', async () => {
+    const world = runWorld();
+    world.files.entries.delete(`${KIT_DIRECTORY}/config.json`);
+    expect(await runWith(world.effects, world.run, world.controller.signal)).toBe(2);
   });
 });
 
@@ -391,7 +527,14 @@ describe('the secrets', () => {
 
 describe('a module run as a compose service', () => {
   const composeApi = {
-    module: { mode: 'compose', directory: '/backend', service: 'api-kit', apiBasePath: '/tmf-api/thing/v5' },
+    module: {
+      mode: 'compose',
+      directory: '/backend',
+      service: 'api-kit',
+      kitHost: 'api-kit',
+      kitPort: 3000,
+      apiBasePath: '/tmf-api/thing/v5',
+    },
   } as const;
 
   it('refuses to start when a service of an earlier run is still up', async () => {

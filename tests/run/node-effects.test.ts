@@ -15,18 +15,20 @@ const runIn = (moduleDirectory: string, environment: Record<string, string>, out
   moduleDirectory,
   log: () => undefined,
   output: (chunk) => output.push(chunk),
-  api: {
-    api: 'TMF999',
-    openapiVersion: '1.0.0',
-    pinnedOas: join(moduleDirectory, 'pinned.yaml'),
-    generatedOas: async () => ({}),
-    pinnedCopyTests: ['tests/a.test.ts'],
-    answerValidationTests: ['tests/b.test.ts'],
-    conformanceNode: 'constraints/tmf999-conformance',
-    specificationRoot: join(moduleDirectory, 'spec'),
-    kit: { tmforumDirectory: join(moduleDirectory, 'tmforum'), folder: 'tmf999-v1.0.0-ctk-1.0.0' },
-    module: processModule(),
-  },
+  apis: [
+    {
+      api: 'TMF999',
+      openapiVersion: '1.0.0',
+      pinnedOas: join(moduleDirectory, 'pinned.yaml'),
+      generatedOas: async () => ({}),
+      pinnedCopyTests: ['tests/a.test.ts'],
+      answerValidationTests: ['tests/b.test.ts'],
+      conformanceNode: 'constraints/tmf999-conformance',
+      specificationRoot: join(moduleDirectory, 'spec'),
+      kit: { tmforumDirectory: join(moduleDirectory, 'tmforum'), folder: 'tmf999-v1.0.0-ctk-1.0.0' },
+      module: processModule(),
+    },
+  ],
 });
 
 describe('the real effects', () => {

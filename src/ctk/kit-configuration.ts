@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { KitDidNotRunError } from '../shared/errors.js';
+import { ConfigurationError } from '../shared/errors.js';
 import type { KitReach } from './context.js';
 
 const AUTHORIZATION_HEADER = 'Authorization';
 const JSON_INDENT = 2;
 const HTTP_PROTOCOLS: readonly string[] = ['http:', 'https:'];
-const UNREADABLE = 'the config.json of the kit cannot be read: it needs a url that is an http or https URL';
+const UNREADABLE = 'the config.json of the kit is not usable: it needs a url that is an http or https URL';
 
 const KitConfigurationSchema = z.looseObject({
   url: z.string(),
@@ -20,11 +20,11 @@ export interface IKitConfiguration {
 
 function parsedUrl(text: string): URL {
   if (!URL.canParse(text)) {
-    throw new KitDidNotRunError(UNREADABLE);
+    throw new ConfigurationError(UNREADABLE);
   }
   const url = new URL(text);
   if (!HTTP_PROTOCOLS.includes(url.protocol)) {
-    throw new KitDidNotRunError(UNREADABLE);
+    throw new ConfigurationError(UNREADABLE);
   }
   return url;
 }
@@ -32,7 +32,7 @@ function parsedUrl(text: string): URL {
 function parsedConfiguration(text: string): z.output<typeof KitConfigurationSchema> {
   const result = KitConfigurationSchema.safeParse(safeJson(text));
   if (!result.success) {
-    throw new KitDidNotRunError(UNREADABLE);
+    throw new ConfigurationError(UNREADABLE);
   }
   return result.data;
 }
@@ -47,10 +47,8 @@ function safeJson(text: string): unknown {
 
 function urlFor(kitUrl: URL, reach: KitReach): string {
   const path = `${kitUrl.pathname}${kitUrl.search}`;
-  if (reach.kind === 'compose') {
-    return `${new URL(reach.origin).origin}${path}`;
-  }
-  return `${kitUrl.protocol}//${kitUrl.hostname}:${String(reach.port)}${path}`;
+  const host = reach.kind === 'compose' ? reach.host : kitUrl.hostname;
+  return `${kitUrl.protocol}//${host}:${String(reach.port)}${path}`;
 }
 
 /**

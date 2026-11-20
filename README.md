@@ -20,7 +20,7 @@ pnpm add -D github:zig999/conformance-kit#v0.1.0
 
 ## Uso
 
-O módulo declara a API num objeto e chama `runConformance` em `backend/scripts/conformance.ts`, fora de `src/`. O script `pnpm conformance` roda esse arquivo e a biblioteca termina o processo com o código de saída do padrão.
+O módulo declara cada API num objeto e chama `runConformance` em `backend/scripts/conformance.ts`, fora de `src/`. O código da API chega como argumento do script (`pnpm conformance:tmf637` chama o script com `tmf637`; um módulo com uma só API usa `pnpm conformance`, sem argumento). O script atribui o código de saída que a biblioteca devolve a `process.exitCode`.
 
 ```ts compiled backend/scripts/conformance.ts
 import { resolve } from 'node:path';
@@ -72,7 +72,8 @@ const api: IApiConformance = {
 process.exitCode = await runConformance({
   environment: process.env,
   moduleDirectory: backend,
-  api,
+  apis: [api],
+  apiCode: process.argv[2],
   log: (message) => process.stderr.write(`${message}\n`),
   output: (chunk) => process.stdout.write(chunk),
 });
@@ -80,9 +81,9 @@ process.exitCode = await runConformance({
 
 Notas sobre o exemplo:
 
-- **Uma execução serve a uma API.** `CONFORMANCE_KIT_DIRECTORY` nomeia a pasta de um só CTK. Um módulo com mais de uma API tem um objeto por API e um script por API (`conformance:tmf671`, por exemplo), com `severalApisInModule: true`; cada execução grava `conformance-report.<api>.json`.
+- **Uma execução serve a uma API.** `apis` traz todas as APIs do módulo e `apiCode` escolhe uma, em qualquer caixa; com mais de uma API o código é obrigatório. Cada API grava o seu relatório: `conformance-report.json` para o módulo com uma só API e `conformance-report.<tmfNNN>.json` (código em minúsculas) para o módulo com mais de uma. Com mais de uma API, a pasta do CTK de cada uma vem de `CONFORMANCE_KIT_DIRECTORY_<TMFNNN>`, e não de `CONFORMANCE_KIT_DIRECTORY`; a pasta do CTK de outra API é recusada com o código 2.
 - **Modo processo.** O kit confere que a porta de `CONFORMANCE_SERVICE_URL` está livre, aplica a migração, sobe o módulo escutando nela em todos os endereços (o CTK roda em docker) e o desliga com SIGTERM e, passada a tolerância, SIGKILL. A porta é a da URL, e não uma sorteada, porque os itens do CTK trazem o endpoint no título e a porta tem de ser estável para um desvio poder citá-los. Nenhuma variável `CONFORMANCE_*` chega ao módulo.
-- **Modo compose.** O módulo declara o serviço do perfil `kit` do compose dele:
+- **Modo compose.** O módulo declara o serviço do perfil `kit` do compose dele, o nome do serviço na rede `tmf` e a porta interna, que são o endereço que o CTK usa. `CONFORMANCE_SERVICE_URL` serve só para o kit esperar o módulo ficar pronto:
 
 ```ts compiled backend/scripts/conformance-compose.ts
 import { fileURLToPath } from 'node:url';
@@ -94,7 +95,32 @@ export const composeModule: IComposeModule = {
   mode: 'compose',
   directory: backend,
   service: 'api-kit',
+  kitHost: 'api-kit',
+  kitPort: 3000,
   apiBasePath: '/tmf-api/productOrdering/v5',
+};
+```
+
+- **API sem CTK em `../tmforum`.** Roda as camadas 1 a 3, não roda a camada 4, não usa docker, não exige nenhuma variável do CTK e grava `conformanceKit: "not-applicable"`. O código de saída é 0 quando o relatório foi gravado e 5 quando não foi:
+
+```ts compiled backend/scripts/conformance-without-kit.ts
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { IApiWithoutKit } from 'conformance-kit';
+import { generatedDocument } from '../src/conformance/generated-document.js';
+
+const backend = fileURLToPath(new URL('..', import.meta.url));
+
+export const apiWithoutKit: IApiWithoutKit = {
+  withoutKit: true,
+  api: 'TMF648',
+  openapiVersion: '4.0.0',
+  pinnedOas: resolve(backend, 'contracts', 'TMF648-Quote-v4.0.0.oas.yaml'),
+  generatedOas: generatedDocument,
+  pinnedCopyTests: ['tests/contract/pinned-copy.test.ts'],
+  answerValidationTests: ['tests/contract/quote-schemas.test.ts'],
+  conformanceNode: 'constraints/tmf648-conformance',
+  specificationRoot: resolve(backend, '..', 'siegard', 'specification'),
 };
 ```
 
@@ -139,7 +165,7 @@ describe('o documento publicado pela TMF637', () => {
 
 ## Variáveis de ambiente
 
-As do padrão (CNF-04), lidas do `environment` que o módulo passa: `CONFORMANCE_SERVICE_URL`, `CONFORMANCE_ACCESS_TOKEN`, `CONFORMANCE_KIT_DIRECTORY` (obrigatórias) e `CONFORMANCE_START_TIMEOUT_MS`, `CONFORMANCE_RUN_TIMEOUT_MS`, `CONFORMANCE_STEP_TIMEOUT_MS` (opcionais). Variável ausente ou inválida termina com o código 2, nomeando a variável e nunca o valor. `CONFORMANCE_ACCESS_TOKEN` é o valor completo do cabeçalho `Authorization`, com o esquema: o kit o escreve só na `config.json` da cópia temporária privada do CTK e o esconde de toda mensagem e de toda saída.
+As do padrão (CNF-04), lidas do `environment` que o módulo passa: `CONFORMANCE_SERVICE_URL`, `CONFORMANCE_ACCESS_TOKEN`, `CONFORMANCE_KIT_DIRECTORY` ou `CONFORMANCE_KIT_DIRECTORY_<TMFNNN>` (obrigatórias para uma API com CTK; nenhuma delas vale para uma API sem CTK) e `CONFORMANCE_START_TIMEOUT_MS`, `CONFORMANCE_RUN_TIMEOUT_MS`, `CONFORMANCE_STEP_TIMEOUT_MS` (opcionais). Variável ausente ou inválida termina com o código 2, nomeando a variável e nunca o valor. `CONFORMANCE_ACCESS_TOKEN` é o valor completo do cabeçalho `Authorization`, com o esquema: o kit o escreve só na `config.json` da cópia temporária privada do CTK e o esconde de toda mensagem e de toda saída.
 
 ## Códigos de saída e relatório
 
@@ -151,7 +177,7 @@ O que `src/index.ts` exporta, e só isso (`exports` do `package.json`):
 
 | Nome | Para quê |
 |---|---|
-| `runConformance`, `IConformanceRun`, `IApiConformance` | Rodar as camadas 1 a 4 de uma API |
+| `runConformance`, `IConformanceRun`, `IApiConformance`, `IApiWithKit`, `IApiWithoutKit` | Rodar as camadas 1 a 4 de uma API (ou 1 a 3, quando ela não tem CTK) |
 | `IProcessModule`, `IComposeModule`, `IModuleUnderTest`, `IModuleCommand`, `IModuleRuntime` | Como o módulo sobe |
 | `IStandIn`, `IStandInHandle` | Stand-ins que o módulo mantém |
 | `IExpectedKit` | A pasta do CTK em `../tmforum` |

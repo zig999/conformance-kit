@@ -16,14 +16,18 @@ const HTTP_PROTOCOLS: readonly string[] = ['http:', 'https:'];
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
 const DIGITS = /^[0-9]+$/;
 
-/** The run settings of CNF-04. `authorization` is a secret: it is never quoted, logged or recorded. */
+/** The timeouts of CNF-04. Every API has them, with a kit or without one. */
 export interface ISettings {
-  readonly serviceUrl: string;
-  readonly authorization: string;
-  readonly kitDirectory: string;
   readonly startTimeoutMillis: number;
   readonly runTimeoutMillis: number;
   readonly stepTimeoutMillis: number;
+}
+
+/** The variables of the kit (CNF-04). `authorization` is a secret: it is never quoted, logged or recorded. */
+export interface IKitSettings {
+  readonly serviceUrl: string;
+  readonly authorization: string;
+  readonly kitDirectory: string;
 }
 
 function suppliedText(environment: Environment, name: string): string {
@@ -32,10 +36,6 @@ function suppliedText(environment: Environment, name: string): string {
 
 function refuse(variable: string, why: string): never {
   throw new ConfigurationError(`${variable} ${why}`, { variable });
-}
-
-function absentVariables(environment: Environment): string[] {
-  return [SERVICE_URL, ACCESS_TOKEN, KIT_DIRECTORY].filter((name) => suppliedText(environment, name) === '');
 }
 
 function originOf(text: string): string {
@@ -67,9 +67,25 @@ function authorizationOf(environment: Environment): string {
   return CONTROL_CHARACTER.test(value) ? refuse(ACCESS_TOKEN, 'must be the value of a header, on one line') : value;
 }
 
+/** CNF-04: the variable that names the folder of the kit; a module with several APIs has one per API. */
+export function kitDirectoryVariableOf(apiCode: string, severalApis: boolean): string {
+  return severalApis ? `${KIT_DIRECTORY}_${apiCode.toUpperCase()}` : KIT_DIRECTORY;
+}
+
+/** CNF-04: a timeout that is invalid refuses the run, naming the variable and never its value. */
+export function readSettings(environment: Environment): ISettings {
+  return {
+    startTimeoutMillis: timeoutOf(environment, START_TIMEOUT, DEFAULT_START_TIMEOUT_MS),
+    runTimeoutMillis: timeoutOf(environment, RUN_TIMEOUT, DEFAULT_RUN_TIMEOUT_MS),
+    stepTimeoutMillis: timeoutOf(environment, STEP_TIMEOUT, DEFAULT_STEP_TIMEOUT_MS),
+  };
+}
+
 /** CNF-04: a variable that is absent, empty or invalid refuses the run, naming the variable and never its value. */
-export function readSettings(environment: Environment, kit: IExpectedKit): ISettings {
-  const absent = absentVariables(environment);
+export function readKitSettings(environment: Environment, kit: IExpectedKit, directoryVariable: string): IKitSettings {
+  const absent = [SERVICE_URL, ACCESS_TOKEN, directoryVariable].filter(
+    (name) => suppliedText(environment, name) === '',
+  );
   if (absent.length > 0) {
     throw new ConfigurationError(`these environment variables are absent or empty: ${absent.join(', ')}`, {
       variable: absent.join(','),
@@ -78,9 +94,6 @@ export function readSettings(environment: Environment, kit: IExpectedKit): ISett
   return {
     serviceUrl: originOf(suppliedText(environment, SERVICE_URL)),
     authorization: authorizationOf(environment),
-    kitDirectory: assertExpectedKitDirectory(suppliedText(environment, KIT_DIRECTORY), kit),
-    startTimeoutMillis: timeoutOf(environment, START_TIMEOUT, DEFAULT_START_TIMEOUT_MS),
-    runTimeoutMillis: timeoutOf(environment, RUN_TIMEOUT, DEFAULT_RUN_TIMEOUT_MS),
-    stepTimeoutMillis: timeoutOf(environment, STEP_TIMEOUT, DEFAULT_STEP_TIMEOUT_MS),
+    kitDirectory: assertExpectedKitDirectory(suppliedText(environment, directoryVariable), kit, directoryVariable),
   };
 }

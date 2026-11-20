@@ -12,8 +12,11 @@ const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 export const RESULT_PASSED = 'passed';
 export const RESULT_FAILED = 'failed';
 export const RESULT_NOT_RUN = 'not-run';
+export const RESULT_NOT_APPLICABLE = 'not-applicable';
 
 const ResultSchema = z.enum([RESULT_PASSED, RESULT_FAILED, RESULT_NOT_RUN]);
+/** An API with no kit in tmforum has no layer 4: only `conformanceKit` may say so. */
+const KitResultSchema = z.enum([RESULT_PASSED, RESULT_FAILED, RESULT_NOT_RUN, RESULT_NOT_APPLICABLE]);
 const areDistinct = (nodes: readonly string[]): boolean => new Set(nodes).size === nodes.length;
 
 /** CNF-07: strict, so that an unknown key is refused. */
@@ -25,7 +28,7 @@ export const ConformanceReportSchema = z.strictObject({
     pinnedCopyIdentity: ResultSchema,
     publishedDocumentComparison: ResultSchema,
     answerValidation: ResultSchema,
-    conformanceKit: ResultSchema,
+    conformanceKit: KitResultSchema,
   }),
   deviationsApplied: z
     .array(z.string().regex(NODE_IDENTITY))
@@ -34,6 +37,7 @@ export const ConformanceReportSchema = z.strictObject({
 
 export type IConformanceReport = z.output<typeof ConformanceReportSchema>;
 export type LayerResult = z.output<typeof ResultSchema>;
+export type KitResult = z.output<typeof KitResultSchema>;
 export type ILayerResults = IConformanceReport['results'];
 
 export interface IReportFacts {

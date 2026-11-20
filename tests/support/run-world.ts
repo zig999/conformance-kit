@@ -1,5 +1,5 @@
 import { stringify } from 'yaml';
-import type { IApiConformance, IConformanceRun } from '../../src/run/types.js';
+import type { IApiConformance, IApiWithKit, IConformanceRun } from '../../src/run/types.js';
 import type { IRunEffects } from '../../src/shared/effects.js';
 import type { ICommand } from '../../src/shared/ports.js';
 import { AUTHORIZATION, KIT_DIRECTORY, SERVICE_URL, dockerAnswers, seedKit, type IWorldOptions } from './ctk-world.js';
@@ -22,7 +22,10 @@ export interface IRunWorldOptions extends IWorldOptions {
   readonly deviations?: Readonly<Record<string, string>>;
   readonly failingTests?: readonly string[];
   readonly environment?: Readonly<Record<string, string | undefined>>;
-  readonly api?: Partial<IApiConformance>;
+  readonly api?: Partial<IApiWithKit>;
+  readonly extraApis?: readonly IApiConformance[];
+  readonly apiCode?: string;
+  readonly withoutKit?: boolean;
   readonly probe?: readonly ProbeAnswer[];
   readonly generated?: () => Promise<unknown>;
 }
@@ -44,6 +47,35 @@ const vitestReport = (tests: readonly string[], failing: readonly string[]): str
       assertionResults: [{ status: failing.includes(test) ? 'failed' : 'passed' }],
     })),
   });
+
+export const kitApi = (
+  code: string,
+  folder: string,
+  generated: () => Promise<unknown> = async () => baseDocument(),
+): IApiWithKit => ({
+  api: code,
+  openapiVersion: '1.0.0',
+  pinnedOas: PINNED_OAS,
+  generatedOas: generated,
+  pinnedCopyTests: [PINNED_TEST],
+  answerValidationTests: [ANSWER_TEST],
+  conformanceNode: CONFORMANCE_NODE,
+  specificationRoot: SPECIFICATION_ROOT,
+  kit: { tmforumDirectory: '/tmforum', folder },
+  module: processModule({ apiBasePath: API_BASE_PATH }),
+});
+
+export const withoutKitOf = (api: IApiWithKit): IApiConformance => ({
+  api: api.api,
+  openapiVersion: api.openapiVersion,
+  pinnedOas: api.pinnedOas,
+  generatedOas: api.generatedOas,
+  pinnedCopyTests: api.pinnedCopyTests,
+  answerValidationTests: api.answerValidationTests,
+  conformanceNode: api.conformanceNode,
+  specificationRoot: api.specificationRoot,
+  withoutKit: true,
+});
 
 export function runWorld(options: IRunWorldOptions = {}) {
   const deviations = options.deviations ?? {};
@@ -94,23 +126,16 @@ export function runWorld(options: IRunWorldOptions = {}) {
       },
     },
   };
-  const api: IApiConformance = {
-    api: 'TMF999',
-    openapiVersion: '1.0.0',
-    pinnedOas: PINNED_OAS,
-    generatedOas: options.generated ?? (async () => baseDocument()),
-    pinnedCopyTests: [PINNED_TEST],
-    answerValidationTests: [ANSWER_TEST],
-    conformanceNode: CONFORMANCE_NODE,
-    specificationRoot: SPECIFICATION_ROOT,
-    kit: { tmforumDirectory: '/tmforum', folder: 'tmf999-v1.0.0-ctk-1.0.0' },
-    module: processModule({ apiBasePath: API_BASE_PATH }),
+  const withKit: IApiWithKit = {
+    ...kitApi('TMF999', 'tmf999-v1.0.0-ctk-1.0.0', options.generated),
     ...options.api,
   };
+  const api: IApiConformance = options.withoutKit === true ? withoutKitOf(withKit) : withKit;
   const run: IConformanceRun = {
     environment: options.environment ?? validEnvironment(),
     moduleDirectory: MODULE_DIRECTORY,
-    api,
+    apis: [api, ...(options.extraApis ?? [])],
+    ...(options.apiCode === undefined ? {} : { apiCode: options.apiCode }),
     log: () => undefined,
     output: (chunk) => output.push(chunk),
   };

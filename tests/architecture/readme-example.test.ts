@@ -59,6 +59,7 @@ describe('the examples of the README', () => {
       expect.arrayContaining([
         'backend/scripts/conformance.ts',
         'backend/scripts/conformance-compose.ts',
+        'backend/scripts/conformance-without-kit.ts',
         'backend/tests/contract/pinned-copy.test.ts',
         'backend/tests/contract/published-document.test.ts',
       ]),

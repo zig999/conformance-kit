@@ -38,12 +38,20 @@ export interface IProcessModule {
   readonly standIns?: readonly IStandIn[];
 }
 
-/** CNF-13, mode `compose`: the run starts a service of the `kit` profile of the module's compose and takes it down. */
+/**
+ * CNF-13, mode `compose`: the run starts a service of the `kit` profile of the module's compose and takes it down.
+ * CONFORMANCE_SERVICE_URL is how the runner reaches the module to know it is ready; the kit reaches it by `kitHost`
+ * and `kitPort`.
+ */
 export interface IComposeModule {
   readonly mode: 'compose';
   /** The directory of the compose project. */
   readonly directory: string;
   readonly service: string;
+  /** The name of the service in the `tmf` network, which is the host the kit uses to reach the module. */
+  readonly kitHost: string;
+  /** The internal port of the service, which the kit uses to reach the module. */
+  readonly kitPort: number;
   readonly apiBasePath: string;
   readonly standIns?: readonly IStandIn[];
 }

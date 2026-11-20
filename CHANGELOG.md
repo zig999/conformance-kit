@@ -8,8 +8,12 @@ Primeira versão com interface pública. A tag ainda **não** foi criada e o rep
 
 ### Interface pública
 
-- `runConformance(run)` roda as quatro camadas de uma API (testes do módulo, comparação do OAS publicado com o fixado, CTK em docker), julga o CTK com os desvios dos nós da especificação, grava `conformance-report.json` e devolve o código de saída 0 a 5 do padrão. Interrompe por SIGINT e SIGTERM e desliga tudo o que subiu, em ordem inversa.
+- `runConformance(run)` roda as quatro camadas de uma API, escolhida por `run.apiCode` entre `run.apis` (testes do módulo, comparação do OAS publicado com o fixado, CTK em docker), julga o CTK com os desvios dos nós da especificação, grava `conformance-report.json` e devolve o código de saída 0 a 5 do padrão. Interrompe por SIGINT e SIGTERM e desliga tudo o que subiu, em ordem inversa.
 - Módulo sob teste em modo `process` (porta de `CONFORMANCE_SERVICE_URL` conferida como livre, migração, escuta em todos os endereços, SIGTERM e SIGKILL) ou `compose` (serviço do perfil `kit`), com stand-ins do módulo e espera de "pronto".
+- API sem CTK em `../tmforum` (`IApiWithoutKit`, `withoutKit: true`): roda as camadas 1 a 3, grava `conformanceKit: "not-applicable"` (só nessa chave do schema), não usa docker nem exige as variáveis do CTK, e termina com 0 (ou 5 se o relatório não gravou).
+- Módulo com mais de uma API: o código da API é o argumento, o relatório é `conformance-report.<tmfNNN>.json` e a pasta do CTK vem de `CONFORMANCE_KIT_DIRECTORY_<TMFNNN>`; a pasta de outra API é recusada com o código 2.
+- Modo compose: o CTK usa `kitHost` e `kitPort` (nome do serviço e porta interna); `CONFORMANCE_SERVICE_URL` serve só para esperar o módulo ficar pronto.
+- `config.json` do CTK ilegível ou sem `url` http(s) recusa a execução com o código 2 antes de qualquer camada; o `.env` do CTK só é copiado quando existe.
 - `compareOas`, `readOasFile`, `sha256OfFile` e `readDeviationRegister` para os testes de contrato de cada módulo.
 - `EXIT_*`, os erros `ConformanceError`, `ConfigurationError` e `KitDidNotRunError`, e os tipos de `IApiConformance`, `IConformanceRun`, `IProcessModule`, `IComposeModule` e `IStandIn`.
 

@@ -10,7 +10,7 @@ const SUCCESS_EXIT_CODE = 0;
 
 /**
  * CNF-13, mode `compose`: the stand-ins, then the service of the `kit` profile, taken down with `down` at the
- * teardown. The CTK reaches the service at the origin of CONFORMANCE_SERVICE_URL.
+ * teardown. The kit reaches the service by its name and internal port; the runner waits on CONFORMANCE_SERVICE_URL.
  */
 export async function startComposeModule(ctx: ICtkContext, module: IComposeModule): Promise<KitReach> {
   const standIns = await startStandIns(ctx, module.standIns ?? []);
@@ -27,5 +27,5 @@ export async function startComposeModule(ctx: ICtkContext, module: IComposeModul
     );
   }
   await waitUntilAnswering(ctx, { url: `${ctx.settings.serviceUrl}${module.apiBasePath}`, ended: () => undefined });
-  return { kind: 'compose', origin: ctx.settings.serviceUrl };
+  return { kind: 'compose', host: module.kitHost, port: module.kitPort };
 }

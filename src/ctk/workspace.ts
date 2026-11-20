@@ -16,7 +16,6 @@ import { kitConfigurationFor } from './kit-configuration.js';
 const DIRECTORY_PREFIX = 'conformance-kit-ctk-';
 const REPORTS_MODE = 0o777;
 const SUCCESS_EXIT_CODE = 0;
-const COPIED_FILES: readonly string[] = [COMPOSE_FILE, ENVIRONMENT_FILE];
 
 function overrideText(reach: KitReach, hostName: string): string {
   const extraHosts =
@@ -24,13 +23,19 @@ function overrideText(reach: KitReach, hostName: string): string {
   return `services:\n  ${KIT_SERVICE}:\n${extraHosts}`;
 }
 
+async function copyPrivately(ctx: ICtkContext, workspace: IWorkspace, name: string): Promise<void> {
+  const { files } = ctx.effects;
+  await files.writePrivateText(join(workspace.root, name), await files.readText(join(ctx.settings.kitDirectory, name)));
+}
+
 async function copyKitFiles(ctx: ICtkContext, workspace: IWorkspace, reach: KitReach): Promise<void> {
   const { files } = ctx.effects;
   const { kitDirectory, authorization } = ctx.settings;
   const kitText = await files.readText(join(kitDirectory, CONFIGURATION_FILE));
   const configuration = kitConfigurationFor(kitText, reach, authorization);
-  for (const name of COPIED_FILES) {
-    await files.writePrivateText(join(workspace.root, name), await files.readText(join(kitDirectory, name)));
+  await copyPrivately(ctx, workspace, COMPOSE_FILE);
+  if (await files.exists(join(kitDirectory, ENVIRONMENT_FILE))) {
+    await copyPrivately(ctx, workspace, ENVIRONMENT_FILE);
   }
   await files.writePrivateText(join(workspace.root, CONFIGURATION_FILE), configuration.text);
   await files.writePrivateText(join(workspace.root, OVERRIDE_FILE), overrideText(reach, configuration.hostName));

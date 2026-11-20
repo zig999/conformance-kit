@@ -10,6 +10,8 @@ const composeModule = (overrides: Partial<IComposeModule> = {}): IComposeModule 
   mode: 'compose',
   directory: '/backend',
   service: 'api-kit',
+  kitHost: 'api-kit',
+  kitPort: 3000,
   apiBasePath: API_BASE_PATH,
   ...overrides,
 });
@@ -30,11 +32,13 @@ describe('starting the module as a compose service', () => {
     expect(world.probed).toEqual(['http://localhost:9000/tmf-api/thing/v5']);
   });
 
-  it('answers that the kit reaches the service at the origin of the service url', async () => {
+  it('answers that the kit reaches the service by the name and the internal port the module gave', async () => {
     const world = moduleWorld();
-    expect(await startModule(world.context, composeModule(), CTK_HOST)).toEqual({
+    const module = composeModule({ kitHost: 'thing-api', kitPort: 8080 });
+    expect(await startModule(world.context, module, CTK_HOST)).toEqual({
       kind: 'compose',
-      origin: 'http://localhost:9000',
+      host: 'thing-api',
+      port: 8080,
     });
   });
 

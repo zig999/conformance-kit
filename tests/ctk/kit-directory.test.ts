@@ -6,14 +6,20 @@ const expected = { tmforumDirectory: '/home/me/sales/tmforum', folder: 'tmf999-v
 
 describe('the folder of the kit', () => {
   it('accepts the folder held in the tmforum directory', () => {
-    expect(assertExpectedKitDirectory('/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0', expected)).toBe(
-      '/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0',
-    );
+    expect(
+      assertExpectedKitDirectory(
+        '/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0',
+        expected,
+        'CONFORMANCE_KIT_DIRECTORY',
+      ),
+    ).toBe('/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0');
   });
 
   it('accepts the same folder written with a trailing separator or with dots', () => {
     const written = '/home/me/sales/tmforum/../tmforum/tmf999-v1.0.0-ctk-1.0.0/';
-    expect(assertExpectedKitDirectory(written, expected)).toBe('/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0');
+    expect(assertExpectedKitDirectory(written, expected, 'CONFORMANCE_KIT_DIRECTORY')).toBe(
+      '/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0',
+    );
   });
 
   it.each([
@@ -22,12 +28,15 @@ describe('the folder of the kit', () => {
     ['the tmforum directory itself', '/home/me/sales/tmforum'],
     ['a folder inside the kit folder', '/home/me/sales/tmforum/tmf999-v1.0.0-ctk-1.0.0/reports'],
   ])('refuses %s', (_name, directory) => {
-    expect(() => assertExpectedKitDirectory(directory, expected)).toThrow(ConfigurationError);
+    expect(() => assertExpectedKitDirectory(directory, expected, 'CONFORMANCE_KIT_DIRECTORY')).toThrow(
+      ConfigurationError,
+    );
   });
 
   it('names the variable and the folder expected, never the folder given', () => {
-    const refusing = () => assertExpectedKitDirectory('/tmp/secret-place/x', expected);
-    expect(refusing).toThrow(/CONFORMANCE_KIT_DIRECTORY/);
+    const refusing = () =>
+      assertExpectedKitDirectory('/tmp/secret-place/x', expected, 'CONFORMANCE_KIT_DIRECTORY_TMF999');
+    expect(refusing).toThrow(/CONFORMANCE_KIT_DIRECTORY_TMF999/);
     expect(refusing).toThrow(expected.folder);
     expect(refusing).not.toThrow(/secret-place/);
   });
