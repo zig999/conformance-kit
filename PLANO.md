@@ -76,6 +76,15 @@ Usados pelos testes de contrato de todo módulo (CNF-01 e CNF-02), além de pelo
 | `compareOas(pinned, generated)` | Devolve as diferenças como lista de `IOasDifference` (`pointer`, `kind`) (CNF-02) |
 | `readDeviationRegister(specificationRoot, conformanceNode)` | Lê o nó de conformidade e os nós de desvio e devolve `IDeviationRegister` (`entries`, `isCovered`, `isExcluded`), para o teste do CNF-02 saber que ponteiro está coberto |
 
+### Validação do stand-in contra o OAS: não entra na biblioteca (decidido na Fase 6, 2026-11-20)
+
+Critério do `CLAUDE.md` §4: tudo que o kit expõe tem uso em pelo menos dois módulos. A evidência lida:
+
+- `productorder` valida as respostas dos seus stand-ins em testes próprios (`tests/functional/party-management-stand-in-answers.spec.ts`, `qualification-stand-in-answer-identity-and-items.spec.ts`), com um veredito escrito por ele (`customerAnswerVerdictOf`).
+- `inventory` valida o stand-in do catálogo em `tests/contract/product-inventory/product-kit-creation-schema.test.ts`, com o leitor de esquema próprio (`findSchemaViolations`).
+
+Os dois já são testes de camada 3: o módulo os lista em `answerValidationTests` e o kit os executa e registra em `results.answerValidation`. O que cada um valida (stand-in de qualificação e de party management num, de catálogo no outro) e o código que usa são diferentes, então não há código comum a extrair. E uma função genérica "validar corpo contra esquema do OAS" exigiria um validador de JSON Schema, que é dependência de runtime além de `zod` e `yaml`, vedada pelo `CLAUDE.md` §5. Sem uso comum e sem dependência permitida, a validação fica no módulo. Se um terceiro módulo mostrar o mesmo código, a decisão se reabre.
+
 ### Decisões de desenho dentro do que o padrão deixa em aberto
 
 - **Erros.** `ConformanceError` é a base; `ConfigurationError` leva ao código 2 e `KitDidNotRunError` ao código 1.
@@ -105,7 +114,7 @@ Cada fase começa pelos testes. A coluna "casos" lista o que os testes provam.
 | 3 | Leitura dos nós de desvio e aplicação ao veredito. **Concluída em 2026-11-20.** Um `statement` em lista de bloco (`- item`) também é recusado, além de aspas, lista e mapa em linha; `readDeviationRegister` é público, o leitor com arquivos injetados é interno. | Nó válido com ponteiros entre aspas duplas e itens entre acentos graves; `statement` em escalar simples, `>` e `\|`; `statement` entre aspas ou em formato de lista (recusado); crase ou aspas que não fecham; par de acentos vazio; ausência de frontmatter; nó ausente; identificador fora do padrão; item falho coberto e não coberto; ponteiro coberto e não coberto |
 | 4 | Relatório gravado com schema estrito, códigos de saída 0 a 5 e precedência. **Concluída em 2026-11-20.** Os casos "gravado também quando a configuração é recusada" e "não gravado vira 5" têm a peça aqui (`recordRun`, `exitCodeOf`) e o teste ponta a ponta na Fase 9. | Schema recusa chave desconhecida, resultado fora de `passed`/`failed`/`not-run` e desvio repetido; relatório de camada que não rodou fica `not-run`; cada código de saída; precedência 2, 1, 3, 4, 5; 3 vale sobre 0; relatório gravado também quando a configuração é recusada; relatório não gravado vira 5 |
 | 5 | Leitura de OAS, SHA-256 (camada 1) e comparação de OAS gerado e fixado (camada 2). **Concluída em 2026-11-20.** A comparação é semântica nas cinco dimensões do CNF-02 (caminhos, operações, esquemas, estados, códigos de resposta), como a do `inventory`: metadados do documento e prosa ficam de fora, `allOf` e referências são achatados, estados são conjuntos. Não foi validada contra um documento gerado de módulo real (ver §9). | YAML e JSON; SHA-256 igual e diferente; diferença em caminho, operação, esquema, estado e código de resposta, cada uma como ponteiro JSON; diferença coberta por desvio e não coberta; OAS ilegível |
-| 6 | Execução dos testes do módulo para as camadas 1 e 3, e registro dos resultados. Decidir, pelo uso real em dois módulos, se a validação do stand-in contra o OAS entra aqui. | Conjunto que passa; conjunto com falha; conjunto sem nenhum teste (conta como falha); relatório do vitest ausente; resultado mapeado para `pinnedCopyIdentity` e `answerValidation` |
+| 6 | Execução dos testes do módulo para as camadas 1 e 3, e registro dos resultados. Decidir, pelo uso real em dois módulos, se a validação do stand-in contra o OAS entra aqui. **Concluída em 2026-11-20.** Decisão do stand-in: não entra (§4). Cada arquivo listado precisa deixar resultado aprovado com ao menos uma asserção no relatório do vitest, porque o filtro do vitest é por trecho do caminho e um erro de digitação passaria despercebido; nome que começa com `-` é recusado. | Conjunto que passa; conjunto com falha; conjunto sem nenhum teste (conta como falha); relatório do vitest ausente; resultado mapeado para `pinnedCopyIdentity` e `answerValidation` |
 | 7 | Execução do CTK em docker. O token vai na `config.json` da cópia temporária. | Com executor de comandos de mentira: docker indisponível (código 1); `Authorization` só na `config.json` temporária, com modo `0600`, e apagada no desligamento; serviço de execução anterior ainda de pé (recusa); rede criada e removida só se criada; cópia temporária privada, diretório do CTK intocado; contêiner removido quando o CTK passa, falha e é interrompido; esvaziar `reports/` como root quando a remoção falha; desligamento em ordem inversa; passo do desligamento que falha vira 3; CTK sem relatório (1); `url` da `config.json` trocada pela do módulo; pasta do CTK diferente da esperada recusada |
 | 8 | Módulo sob teste em modo processo e em modo compose, e espera de "pronto". | Migração aplicada antes de subir; porta livre, com o módulo escutando onde o CTK o alcança (não só em loopback); SIGTERM e, passada a tolerância (o valor de `CONFORMANCE_STEP_TIMEOUT_MS`), SIGKILL; módulo que termina antes de responder; módulo que responde 404 e 5xx (não pronto) e 200 e 4xx diferente de 404 (pronto); tempo de espera esgotado; `CONFORMANCE_*` nunca repassadas ao módulo; modo compose sobe o serviço do perfil `kit` e o derruba |
 | 9 | Orquestração: o objeto declarativo e a função que roda as quatro camadas e o CTK, com suporte a mais de uma API. **Critério para a v0.1.0.** | Camadas 1 a 3 rodam antes do CTK e uma falha não impede as seguintes; a camada que não rodou fica `not-run`; um relatório por API; configuração inválida (código 2) com todas as camadas `not-run`; nenhum valor de `CONFORMANCE_ACCESS_TOKEN` em saída, log, erro ou relatório |
@@ -138,9 +147,12 @@ Para os módulos com linha de base desconhecida, o primeiro passo da migração 
 
 ## 10. Decisões pendentes
 
-- Se a validação do stand-in contra o OAS entra na biblioteca (Fase 6), a decidir pelo uso em dois módulos.
 - Nomes dos campos da interface pública (Fase 1).
 - Criar o repositório remoto `github:zig999/conformance-kit`, antes da primeira tag.
+
+Decidida na Fase 6 (2026-11-20), pelo critério do `CLAUDE.md`:
+
+- **Validação do stand-in contra o OAS:** não entra na biblioteca (§4).
 
 Decididas em 2026-11-20 pelo usuário:
 
