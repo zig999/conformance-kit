@@ -551,7 +551,9 @@ describe('a module run as a compose service', () => {
   it('refuses to start when a service of an earlier run is still up', async () => {
     const { code, report } = await execute({
       api: composeApi,
-      handlers: [(_c, line) => (line.includes(' ps -q') ? { exitCode: 0, output: 'abc\n' } : undefined)],
+      handlers: [
+        (_c, line) => (line.includes(' ps -q') ? { exitCode: 0, output: 'abc\n', stdout: 'abc\n' } : undefined),
+      ],
     });
     expect(code).toBe(1);
     expect(report?.['results']).toMatchObject({ conformanceKit: 'not-run' });

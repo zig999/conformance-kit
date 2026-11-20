@@ -4,7 +4,6 @@ import { ensureDocker, ensureNetwork, runKitContainer, type IKitOutcome } from '
 import { kitHostNameOf } from '../ctk/kit-configuration.js';
 import type { IFiles } from '../shared/ports.js';
 import { startModule } from '../ctk/module-start.js';
-import { requireNothingRunning } from '../ctk/previous-run.js';
 import { deviationsApplied } from '../deviations/applied.js';
 import { readDeviationRegisterFrom, type IDeviationRegister } from '../deviations/register.js';
 import { runPublishedComparison } from '../layers/published-comparison.js';
@@ -137,9 +136,6 @@ function ctkContext(rc: IRunContext, prepared: IPrepared, kit: IPreparedKit): IC
 async function startAndRunKit(ctx: ICtkContext, kit: IPreparedKit, register: IDeviationRegister): Promise<IKitOutcome> {
   const { module } = kit.api;
   await ensureDocker(ctx);
-  if (module.mode === 'compose') {
-    await requireNothingRunning(ctx, module);
-  }
   await ensureNetwork(ctx);
   const reach = await startModule(ctx, module, kit.hostName);
   return runKitContainer(ctx, reach, register);

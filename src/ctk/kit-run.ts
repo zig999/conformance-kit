@@ -49,7 +49,7 @@ async function removeContainer(ctx: ICtkContext, name: string): Promise<boolean>
     return false;
   }
   return (
-    listing.output.trim() === '' ||
+    listing.stdout.trim() === '' ||
     (await runner.run(kitContainerRemove(ctx.settings, name))).exitCode === SUCCESS_EXIT_CODE
   );
 }

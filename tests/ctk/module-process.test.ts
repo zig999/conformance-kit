@@ -161,6 +161,22 @@ describe('stopping the module', () => {
     expect(world.spawned[0]?.child.signals).toEqual(['SIGTERM']);
   });
 
+  it('cancels the wait of the step timeout once the module has exited, so that nothing keeps the process alive', async () => {
+    const world = moduleWorld();
+    await startModule(world.context, processModule(), CTK_HOST);
+    await world.teardown.run();
+    const waits = world.clock.signals.filter((signal): signal is AbortSignal => signal !== undefined);
+    expect(world.clock.sleeps).toContain(22);
+    expect(waits.at(-1)?.aborted).toBe(true);
+  });
+
+  it('cancels that wait after a SIGKILL too', async () => {
+    const world = moduleWorld({ onSpawn: ({ child }) => void (child.exitsOn = new Set(['SIGKILL'])) });
+    await startModule(world.context, processModule(), CTK_HOST);
+    await world.teardown.run();
+    expect(world.clock.signals.at(-1)?.aborted).toBe(true);
+  });
+
   it('sends SIGKILL when it does not exit within the step timeout', async () => {
     const world = moduleWorld({ onSpawn: ({ child }) => void (child.exitsOn = new Set(['SIGKILL'])) });
     await startModule(world.context, processModule(), CTK_HOST);

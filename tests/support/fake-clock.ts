@@ -4,6 +4,7 @@ import type { IClock } from '../../src/shared/ports.js';
 export class FakeClock implements IClock {
   private current: number;
   readonly sleeps: number[] = [];
+  readonly signals: (AbortSignal | undefined)[] = [];
 
   constructor(start = 0) {
     this.current = start;
@@ -16,6 +17,7 @@ export class FakeClock implements IClock {
   async sleep(millis: number, signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted();
     this.sleeps.push(millis);
+    this.signals.push(signal);
     this.current += millis;
   }
 }

@@ -2,6 +2,13 @@
 
 Toda tag leva uma entrada. Tags são imutáveis e nunca movidas; mudança incompatível exige tag nova.
 
+## Não publicado (correções do review, para a v0.1.1)
+
+- **Listagens julgadas só pelo stdout.** `ICommandResult` ganhou `stdout`. `docker compose ps -q` e `docker ps -a -q` com um aviso no stderr (`variable is not set`) faziam o kit recusar partir com "serviços já rodando" ou tentar remover um contêiner que não existe (código 3).
+- **Modo compose:** a recusa de serviço de execução anterior roda depois que os stand-ins sobem e com o ambiente do `up`, porque o arquivo do compose pode precisar das variáveis que eles publicam.
+- **A espera entre SIGTERM e SIGKILL é cancelada** quando o módulo sai. Antes, o timer solto segurava o processo da execução por até `CONFORMANCE_STEP_TIMEOUT_MS` (60 s por padrão) depois do resultado.
+- **Gancho do Mocha que falhou** (em `beforeHooks`, `afterHooks` ou entre os testes com `isHook`) passa a ser "o CTK não rodou até o fim" (código 1); antes era ignorado e os testes depois dele, que não rodaram, deixavam só itens aprovados. **`run.failures` do Newman** passa a produzir itens falhos. Desvio do CNF-15 ("ganchos não contam"): só o gancho que falhou conta.
+
 ## v0.1.0 (2026-11-20)
 
 Primeira versão com interface pública. Instala-se por `pnpm add -D github:zig999/conformance-kit#v0.1.0`.

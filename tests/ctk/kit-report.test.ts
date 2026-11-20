@@ -58,9 +58,9 @@ describe('reading a Mocha report', () => {
     expect(items.map((item) => item.identifier)).toEqual(['suite short', 'only title']);
   });
 
-  it('ignores hooks', async () => {
+  it('ignores a hook that passed: it is not an item', async () => {
     const items = await readFrom(
-      mochaReport({ tests: [{ title: 'before all hook', state: 'failed', isHook: true }, passedTest('real')] }),
+      mochaReport({ tests: [{ title: 'before all hook', state: 'passed', isHook: true }, passedTest('real')] }),
     );
     expect(items).toEqual([{ identifier: 'real', passed: true }]);
   });
@@ -129,6 +129,87 @@ describe('reading a Newman report', () => {
 
   it('names the item by item.name', async () => {
     expect((await readFrom(newmanReport(answered('Create product'))))[0]?.identifier).toBe('Create product');
+  });
+});
+
+describe('a hook that failed', () => {
+  const hook = (overrides: Record<string, unknown> = {}): IMochaTest => ({
+    title: '"before all" hook',
+    fullTitle: 'Suite "before all" hook',
+    state: 'failed',
+    fail: true,
+    isHook: true,
+    ...overrides,
+  });
+
+  it('means the kit did not run to the end, because the tests after it never ran', async () => {
+    const reading = readFrom(mochaReport({ tests: [passedTest('before it'), hook()] }));
+    await expect(reading).rejects.toBeInstanceOf(KitDidNotRunError);
+    await expect(reading).rejects.toThrow(/hook/);
+  });
+
+  it('names the hook, as the kit reports it with its white space made one space', async () => {
+    const reading = readFrom(
+      mochaReport({ tests: [passedTest('a'), hook({ fullTitle: 'Suite\n\t"before all" hook' })] }),
+    );
+    await expect(reading).rejects.toThrow('Suite "before all" hook');
+  });
+
+  it.each(['beforeHooks', 'afterHooks'])('is found in %s of a suite, and in a nested suite', async (key) => {
+    const document = JSON.stringify({
+      results: [{ tests: [passedTest('a')], suites: [{ tests: [passedTest('b')], [key]: [hook()] }] }],
+    });
+    await expect(readFrom(document)).rejects.toBeInstanceOf(KitDidNotRunError);
+  });
+
+  it('is found when it is marked as failed without a state', async () => {
+    await expect(
+      readFrom(mochaReport({ tests: [passedTest('a'), hook({ state: undefined })] })),
+    ).rejects.toBeInstanceOf(KitDidNotRunError);
+  });
+
+  it('is not an error when the hook passed or is pending, and it is still not an item', async () => {
+    const items = await readFrom(
+      JSON.stringify({
+        results: [
+          {
+            tests: [passedTest('a'), hook({ state: 'passed', fail: false })],
+            beforeHooks: [hook({ state: 'passed', fail: false }), hook({ state: 'pending', fail: false })],
+            afterHooks: ['a-uuid-of-a-hook'],
+          },
+        ],
+      }),
+    );
+    expect(items).toEqual([{ identifier: 'a', passed: true }]);
+  });
+});
+
+describe('the failures of a Newman run', () => {
+  const withFailures = (failures: unknown[], ...names: string[]): string =>
+    JSON.stringify({
+      run: { executions: names.map((name) => ({ item: { name }, response: { code: 200 }, assertions: [] })), failures },
+    });
+
+  it('turn the item they name into a failed one, even when all its assertions passed', async () => {
+    const items = await readFrom(
+      withFailures([{ source: { name: 'create product' }, error: { message: 'boom' } }], 'create product', 'list'),
+    );
+    expect(failedIdentifiers(items)).toEqual(['create product']);
+  });
+
+  it('count as a failed item with a name of their own when they name none', async () => {
+    const items = await readFrom(withFailures([{ error: { message: 'script error' } }], 'list'));
+    expect(failedIdentifiers(items)).toEqual(['Newman failure with no item']);
+  });
+
+  it('normalize the name of the item as for any other item', async () => {
+    const items = await readFrom(withFailures([{ source: { name: 'create\n\tproduct' } }], 'create product'));
+    expect(failedIdentifiers(items)).toEqual(['create product']);
+  });
+
+  it('are nothing when the list is empty or absent', async () => {
+    expect(failedIdentifiers(await readFrom(withFailures([], 'list')))).toEqual([]);
+    expect(failedIdentifiers(await readFrom(newmanReport(answered('list'))))).toEqual([]);
   });
 });
 

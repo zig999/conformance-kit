@@ -12,7 +12,7 @@ import {
   reportWithFailure,
   type IWorldOptions,
 } from '../support/ctk-world.js';
-import { failed, succeeded } from '../support/fake-runner.js';
+import { failed, succeeded, succeededWithWarning } from '../support/fake-runner.js';
 import { CONFORMANCE_NODE, SPECIFICATION_ROOT, nodeText, specificationWith } from '../support/deviation-nodes.js';
 
 const reach = { kind: 'process', port: 4321 } as const;
@@ -88,21 +88,39 @@ describe('a service of a previous run', () => {
 
   it('refuses to start when a service of the kit profile is still up, and says how to stop it', async () => {
     const world = ctkWorld({ handlers: [(_c, line) => (line.includes(' ps -q') ? succeeded('abc123\n') : undefined)] });
-    const reading = requireNothingRunning(world.context, compose);
+    const reading = requireNothingRunning(world.context, compose, { PATH: '/bin' });
     await expect(reading).rejects.toBeInstanceOf(KitDidNotRunError);
     await expect(reading).rejects.toThrow(/docker compose --profile kit down/);
     expect(world.runner.calls[0]).toMatchObject({ cwd: '/backend', timeoutMillis: 22 });
   });
 
+  it('does not take a warning on stderr for a service that is up', async () => {
+    const world = ctkWorld({
+      handlers: [
+        (_c, line) =>
+          line.includes(' ps -q') ? succeededWithWarning('WARN The "AUTH_ISSUER" variable is not set') : undefined,
+      ],
+    });
+    await expect(requireNothingRunning(world.context, compose, { PATH: '/bin' })).resolves.toBeUndefined();
+  });
+
+  it('lists the services with the environment it is given', async () => {
+    const world = ctkWorld();
+    await requireNothingRunning(world.context, compose, { PATH: '/bin', CATALOG_URL: 'http://x' });
+    expect(world.runner.calls[0]?.env).toEqual({ PATH: '/bin', CATALOG_URL: 'http://x' });
+  });
+
   it('goes on when nothing is up', async () => {
     const world = ctkWorld();
-    await expect(requireNothingRunning(world.context, compose)).resolves.toBeUndefined();
+    await expect(requireNothingRunning(world.context, compose, { PATH: '/bin' })).resolves.toBeUndefined();
     expect(world.runner.lines()).toEqual(['docker compose --profile kit ps -q']);
   });
 
   it('refuses to start when it cannot list the services', async () => {
     const world = ctkWorld({ handlers: [(_c, line) => (line.includes(' ps -q') ? failed(1) : undefined)] });
-    await expect(requireNothingRunning(world.context, compose)).rejects.toBeInstanceOf(KitDidNotRunError);
+    await expect(requireNothingRunning(world.context, compose, { PATH: '/bin' })).rejects.toBeInstanceOf(
+      KitDidNotRunError,
+    );
   });
 });
 
@@ -377,6 +395,15 @@ describe('removing the container of the kit', () => {
     });
     await runKitContainer(world.context, reach, await register());
     expect(await world.teardown.run()).toBe(1);
+  });
+
+  it('removes nothing, and counts no failure, when the listing says something on stderr only', async () => {
+    const world = ctkWorld({
+      handlers: [(_c, line) => (line.startsWith('docker ps -a') ? succeededWithWarning('WARN something') : undefined)],
+    });
+    await runKitContainer(world.context, reach, await register());
+    expect(await world.teardown.run()).toBe(0);
+    expect(removal(world.runner.lines())).toEqual([]);
   });
 
   it('counts a failed teardown when it cannot even list the containers', async () => {

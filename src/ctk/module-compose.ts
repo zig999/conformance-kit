@@ -4,6 +4,7 @@ import type { ICtkContext, KitReach } from './context.js';
 import { modulesDown, modulesUp } from './docker-commands.js';
 import type { IComposeModule } from './module-types.js';
 import { waitUntilAnswering } from './readiness.js';
+import { requireNothingRunning } from './previous-run.js';
 import { startStandIns } from './stand-ins.js';
 
 const SUCCESS_EXIT_CODE = 0;
@@ -16,6 +17,7 @@ export async function startComposeModule(ctx: ICtkContext, module: IComposeModul
   const standIns = await startStandIns(ctx, module.standIns ?? []);
   const env = withoutConformanceVariables({ ...ctx.settings.environment, ...standIns });
   const { runner } = ctx.effects;
+  await requireNothingRunning(ctx, module, env);
   ctx.teardown.push('the module services', async () => {
     const down = await runner.run(modulesDown(ctx.settings, module, env));
     return down.exitCode === SUCCESS_EXIT_CODE;

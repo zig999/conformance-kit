@@ -5,8 +5,10 @@ export type CommandHandler = (
   calls: readonly ICommand[],
 ) => ICommandResult | Promise<ICommandResult>;
 
-export const succeeded = (output = ''): ICommandResult => ({ exitCode: 0, output });
-export const failed = (exitCode = 1, output = ''): ICommandResult => ({ exitCode, output });
+export const succeeded = (output = ''): ICommandResult => ({ exitCode: 0, output, stdout: output });
+export const failed = (exitCode = 1, output = ''): ICommandResult => ({ exitCode, output, stdout: output });
+/** A command that succeeds and says something on stderr only, such as a warning of docker compose. */
+export const succeededWithWarning = (warning: string): ICommandResult => ({ exitCode: 0, output: warning, stdout: '' });
 
 export class FakeRunner implements ICommandRunner {
   readonly calls: ICommand[] = [];

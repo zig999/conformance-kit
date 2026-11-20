@@ -74,12 +74,18 @@ async function stopProcess(
   }
   const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
   child.kill('SIGTERM');
-  const grace = ctx.effects.clock.sleep(ctx.settings.stepTimeoutMillis).catch(() => undefined);
-  await Promise.race([closed, grace]);
-  if (!hasEnded()) {
-    child.kill('SIGKILL');
+  const waiting = new AbortController();
+  const grace = ctx.effects.clock.sleep(ctx.settings.stepTimeoutMillis, waiting.signal).catch(() => undefined);
+  try {
+    await Promise.race([closed, grace]);
+    if (!hasEnded()) {
+      child.kill('SIGKILL');
+    }
+    await closed;
+  } finally {
+    // The wait must not outlive the module: a timer that is left running keeps the process of the run alive.
+    waiting.abort();
   }
-  await closed;
 }
 
 /**

@@ -3,7 +3,7 @@ import { startModule } from '../../src/ctk/module-start.js';
 import type { IComposeModule } from '../../src/ctk/module-types.js';
 import { KitDidNotRunError } from '../../src/shared/errors.js';
 import { CTK_HOST } from '../support/ctk-world.js';
-import { failed } from '../support/fake-runner.js';
+import { failed, succeeded } from '../support/fake-runner.js';
 import { API_BASE_PATH, moduleWorld, standIn } from '../support/module-world.js';
 
 const composeModule = (overrides: Partial<IComposeModule> = {}): IComposeModule => ({
@@ -21,9 +21,36 @@ describe('starting the module as a compose service', () => {
     const world = moduleWorld();
     await startModule(world.context, composeModule(), CTK_HOST);
     expect(world.runner.lines()).toEqual([
+      'docker compose --profile kit ps -q',
       'docker compose --profile kit up -d --build --wait --wait-timeout 4 api-kit',
     ]);
-    expect(world.runner.calls[0]).toMatchObject({ cwd: '/backend', interruptible: true, timeoutMillis: 3333 });
+    expect(world.runner.calls[1]).toMatchObject({ cwd: '/backend', interruptible: true, timeoutMillis: 3333 });
+  });
+
+  it('refuses to start, before it brings anything up, when a service of an earlier run is still up', async () => {
+    const world = moduleWorld({ handlers: [(_c, line) => (line.includes(' ps -q') ? succeeded('abc\n') : undefined)] });
+    const starting = startModule(world.context, composeModule(), CTK_HOST);
+    await expect(starting).rejects.toBeInstanceOf(KitDidNotRunError);
+    await expect(starting).rejects.toThrow(/already running/);
+    expect(world.runner.lines().some((line) => line.includes(' up '))).toBe(false);
+  });
+
+  it('lists the services after the stand-ins are up and with the variables they publish, as the compose file may need them', async () => {
+    const events: string[] = [];
+    const world = moduleWorld({
+      handlers: [
+        (command, line) => {
+          if (line.includes(' ps -q')) {
+            events.push('ps');
+            return command.env['CATALOG_URL'] === undefined ? failed(1) : undefined;
+          }
+          return undefined;
+        },
+      ],
+    });
+    const module = composeModule({ standIns: [standIn('catalog', events, { CATALOG_URL: 'http://host:1' })] });
+    await startModule(world.context, module, CTK_HOST);
+    expect(events).toEqual(['start:catalog', 'ps']);
   });
 
   it('asks the service at the url of the run and the base path of the API', async () => {
@@ -83,15 +110,15 @@ describe('starting the module as a compose service', () => {
       ...world.context.effects,
       runner: {
         run: async (command: { args: readonly string[] }) => {
-          events.push(command.args.includes('up') ? 'up' : 'down');
-          return { exitCode: 0, output: '' };
+          events.push(command.args.includes('up') ? 'up' : command.args.includes('ps') ? 'ps' : 'down');
+          return { exitCode: 0, output: '', stdout: '' };
         },
       },
     };
     const module = composeModule({ standIns: [standIn('catalog', events, { CATALOG_URL: 'http://host:1' })] });
     await startModule({ ...world.context, effects: recording }, module, CTK_HOST);
     await world.teardown.run();
-    expect(events).toEqual(['start:catalog', 'up', 'down', 'close:catalog']);
+    expect(events).toEqual(['start:catalog', 'ps', 'up', 'down', 'close:catalog']);
   });
 
   it('hands the variables of the stand-ins to compose, and no CONFORMANCE_ variable', async () => {
@@ -102,6 +129,9 @@ describe('starting the module as a compose service', () => {
     };
     const module = composeModule({ standIns: [standIn('catalog', [], { CATALOG_URL: 'http://host:1' })] });
     await startModule({ ...world.context, settings }, module, CTK_HOST);
-    expect(world.runner.calls[0]?.env).toEqual({ PATH: '/bin', CATALOG_URL: 'http://host:1' });
+    expect(world.runner.calls.map((call) => call.env)).toEqual([
+      { PATH: '/bin', CATALOG_URL: 'http://host:1' },
+      { PATH: '/bin', CATALOG_URL: 'http://host:1' },
+    ]);
   });
 });

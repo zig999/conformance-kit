@@ -19,7 +19,17 @@ describe('the process runner', () => {
       child.finish(0);
     });
     const result = await createProcessRunner({ spawn: fake.spawn }).run(command());
-    expect(result).toEqual({ exitCode: 0, output: 'first second' });
+    expect(result).toEqual({ exitCode: 0, output: 'first second', stdout: 'first ' });
+  });
+
+  it('keeps stdout apart from stderr, so that a warning is not taken for an answer', async () => {
+    const fake = createFakeSpawn(({ child }) => {
+      child.stderr.write('WARN a variable is not set');
+      child.finish(0);
+    });
+    const result = await createProcessRunner({ spawn: fake.spawn }).run(command());
+    expect(result.stdout).toBe('');
+    expect(result.output).toBe('WARN a variable is not set');
   });
 
   it('reports the exit code of a process that fails', async () => {

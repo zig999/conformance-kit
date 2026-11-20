@@ -83,8 +83,8 @@ export function emptyReports(settings: IStepSettings, workspace: IWorkspace): IC
   return docker(settings, [...composeInWorkspace(workspace), ...emptying, ...name, ...find]);
 }
 
-export function composeServices(settings: IStepSettings, directory: string): ICommand {
-  return docker(settings, ['compose', '--profile', MODULE_PROFILE, 'ps', '-q'], { cwd: directory });
+export function composeServices(settings: IStepSettings, directory: string, env: Environment): ICommand {
+  return docker(settings, ['compose', '--profile', MODULE_PROFILE, 'ps', '-q'], { cwd: directory, env });
 }
 
 /** `docker compose --profile kit up -d --build --wait <service>`, with the variables the stand-ins publish. */

@@ -14,7 +14,10 @@ export interface ICommand {
 
 export interface ICommandResult {
   readonly exitCode: number;
+  /** Stdout and stderr together, in the order they came: for reading by a person. */
   readonly output: string;
+  /** Stdout alone: what a command answers, free of the warnings it prints on stderr. Judge a listing by this. */
+  readonly stdout: string;
 }
 
 export interface ICommandRunner {
