@@ -173,7 +173,6 @@ Execuções reais com o código final (2026-11-20, mesmo CTK e servidor falso; n
 
 ## 10. Decisões pendentes
 
-- Enviar a `main` ao remoto `github:zig999/conformance-kit` (criado pelo usuário) e criar a tag `v0.1.0`: só quando o usuário pedir.
 
 Decidida na Fase 6 (2026-11-20), pelo critério do `CLAUDE.md`:
 

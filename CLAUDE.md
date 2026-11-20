@@ -87,7 +87,7 @@ Na dúvida, não pertence. Pare e pergunte.
 ## 7. Decisões em aberto (confirmar antes de implementar a parte relacionada)
 
 - **Nomes dos campos da interface pública.** Decididos na Fase 1 e confirmados na Fase 9; estão em `PLANO.md` §4 e no `README.md`.
-- **Repositório remoto.** Criado pelo usuário em `github:zig999/conformance-kit`. Enviar a `main` e criar a tag `v0.1.0` só quando o usuário pedir.
+- **Repositório remoto.** Criado pelo usuário em `github:zig999/conformance-kit`. A `main` e a tag `v0.1.0` foram enviadas em 2026-11-20; tags novas só quando o usuário pedir.
 
 Decididas em 2026-11-20 pelo usuário, conforme o padrão:
 

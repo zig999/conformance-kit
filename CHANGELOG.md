@@ -2,9 +2,9 @@
 
 Toda tag leva uma entrada. Tags são imutáveis e nunca movidas; mudança incompatível exige tag nova.
 
-## v0.1.0 (a criar)
+## v0.1.0 (2026-11-20)
 
-Primeira versão com interface pública. A tag ainda **não** foi criada e o repositório remoto ainda não existe: depende de quem opera (`pnpm release 0.1.0`).
+Primeira versão com interface pública. Instala-se por `pnpm add -D github:zig999/conformance-kit#v0.1.0`.
 
 ### Interface pública
 

@@ -2,7 +2,7 @@
 
 Biblioteca TypeScript que dá aos módulos de vendas a mesma maneira de provar a conformidade com as APIs do TM Forum: compara o OAS gerado com o fixado, roda os testes de contrato do módulo, roda o CTK oficial contra o módulo, julga o resultado com os desvios registrados e grava o `conformance-report.json`.
 
-**Estado:** `v0.1.0` desenvolvida e verificada em testes com executor de comandos e sistema de arquivos de mentira, e com o CTK real da TMF637 contra um servidor falso (modo processo e modo compose): isso prova a mecânica, não a conformância de um módulo. A tag ainda não foi criada. Há três desvios de projeto do padrão (modo `0644` da `config.json` da cópia, espaço em branco normalizado nos identificadores de item, porta do módulo em modo processo); ver `CHANGELOG.md` e a seção 9 de `PLANO.md`.
+**Estado:** `v0.1.0` desenvolvida e verificada em testes com executor de comandos e sistema de arquivos de mentira, e com o CTK real da TMF637 contra um servidor falso (modo processo e modo compose): isso prova a mecânica, não a conformância de um módulo. Nenhum módulo a usa ainda (as migrações são a Fase 11 do plano). Há três desvios de projeto do padrão (modo `0644` da `config.json` da cópia, espaço em branco normalizado nos identificadores de item, porta do módulo em modo processo); ver `CHANGELOG.md` e a seção 9 de `PLANO.md`.
 
 O que ela implementa é `../padrao-conformidade-tmforum.md`. O formato do relatório, as variáveis, os códigos de saída e o formato dos desvios vivem lá, e este arquivo não os repete: leia o padrão antes de adotar a biblioteca.
 
