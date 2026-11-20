@@ -14,7 +14,6 @@ export interface ISpawnOptions {
   readonly env: Environment;
   readonly stdio: StdioOptions;
   readonly signal?: AbortSignal;
-  readonly timeout?: number;
   readonly killSignal: NodeJS.Signals;
 }
 
@@ -26,11 +25,20 @@ export interface IChildProcess extends EventEmitter {
 
 export type SpawnFunction = (program: string, args: readonly string[], options: ISpawnOptions) => IChildProcess;
 
+/** Starts a timer and answers how to cancel it. */
+export type Schedule = (callback: () => void, millis: number) => () => void;
+
 export interface IProcessRunnerOptions {
+  readonly schedule?: Schedule;
   readonly spawn?: SpawnFunction;
   readonly signal?: AbortSignal;
   readonly onOutput?: (chunk: string) => void;
 }
+
+const nodeSchedule: Schedule = (callback, millis) => {
+  const timer = setTimeout(callback, millis);
+  return () => clearTimeout(timer);
+};
 
 export const nodeSpawn: SpawnFunction = (program, args, options) => spawn(program, [...args], options);
 
@@ -40,7 +48,6 @@ function spawnOptionsOf(command: ICommand, signal: AbortSignal | undefined): ISp
     stdio: STDIO,
     killSignal: KILL_SIGNAL,
     ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
-    ...(command.timeoutMillis === undefined ? {} : { timeout: command.timeoutMillis }),
     ...(command.interruptible && signal !== undefined ? { signal } : {}),
   };
 }
@@ -66,30 +73,44 @@ function record(recording: IRecording, chunk: string, fromStdout: boolean): void
   }
 }
 
-export function createProcessRunner(options: IProcessRunnerOptions = {}): ICommandRunner {
-  const start = options.spawn ?? nodeSpawn;
-  return {
-    run: (command) =>
-      new Promise<ICommandResult>((resolve) => {
-        const recording: IRecording = { output: '', stdout: '' };
-        let settled = false;
-        const settle = (exitCode: number): void => {
-          if (!settled) {
-            settled = true;
-            resolve({ exitCode, output: recording.output, stdout: recording.stdout });
-          }
-        };
-        const collect = (fromStdout: boolean) => (chunk: string) => {
-          record(recording, chunk, fromStdout);
-          if (command.forwardOutput === true) {
-            options.onOutput?.(chunk);
-          }
-        };
-        const child = start(command.program, command.args, spawnOptionsOf(command, options.signal));
-        watch(child.stdout, collect(true));
-        watch(child.stderr, collect(false));
-        child.on('error', (error: unknown) => settle(exitCodeOfError(error)));
-        child.on('close', (code: number | null) => settle(code ?? SIGNALLED_EXIT_CODE));
-      }),
+function listen(child: IChildProcess, recording: IRecording, forward: ((chunk: string) => void) | undefined): void {
+  const collect = (fromStdout: boolean) => (chunk: string) => {
+    record(recording, chunk, fromStdout);
+    forward?.(chunk);
   };
+  watch(child.stdout, collect(true));
+  watch(child.stderr, collect(false));
+}
+
+function runCommand(options: IProcessRunnerOptions, command: ICommand): Promise<ICommandResult> {
+  const start = options.spawn ?? nodeSpawn;
+  const schedule = options.schedule ?? nodeSchedule;
+  return new Promise<ICommandResult>((resolve) => {
+    const recording: IRecording = { output: '', stdout: '' };
+    let timedOut = false;
+    let settled = false;
+    let cancelTimer = (): void => undefined;
+    const settle = (exitCode: number): void => {
+      if (!settled) {
+        settled = true;
+        cancelTimer();
+        resolve({ exitCode, output: recording.output, stdout: recording.stdout, timedOut });
+      }
+    };
+    const child = start(command.program, command.args, spawnOptionsOf(command, options.signal));
+    if (command.timeoutMillis !== undefined) {
+      cancelTimer = schedule(() => {
+        timedOut = true;
+        child.kill(KILL_SIGNAL);
+      }, command.timeoutMillis);
+    }
+    listen(child, recording, command.forwardOutput === true ? options.onOutput : undefined);
+    child.on('error', (error: unknown) => settle(exitCodeOfError(error)));
+    child.on('close', (code: number | null) => settle(code ?? SIGNALLED_EXIT_CODE));
+  });
+}
+
+/** Runs a command to its end. The time limit is the runner's own, so that a command it killed is known as such. */
+export function createProcessRunner(options: IProcessRunnerOptions = {}): ICommandRunner {
+  return { run: (command) => runCommand(options, command) };
 }

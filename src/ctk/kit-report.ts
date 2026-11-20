@@ -1,6 +1,6 @@
 import { KitDidNotRunError } from '../shared/errors.js';
 import type { IFiles } from '../shared/ports.js';
-import { readDocument, type IKitItem } from './kit-report-shapes.js';
+import { readDocument, type IKitDocument, type IKitItem } from './kit-report-shapes.js';
 
 export type { IKitItem } from './kit-report-shapes.js';
 
@@ -15,8 +15,9 @@ function parseJson(text: string, path: string): unknown {
 }
 
 /**
- * Reads every .json file of the reports folder (CNF-15). No report, a report with no item, or a failed hook means the
- * CTK did not run to the end. (CNF-15 says hooks do not count; a failed one is the exception, because it stops the tests.)
+ * Reads every .json file of the reports folder (CNF-15). No report, a report with no item, a failed hook, a file that
+ * is neither Mocha nor Newman, or a report that does not add up to its own totals means the CTK did not run to the end.
+ * (CNF-15 says hooks do not count; a failed one is the exception, because it stops the tests.)
  */
 export async function readKitItems(files: IFiles, reportsDirectory: string): Promise<IKitItem[]> {
   const paths = (await files.listFiles(reportsDirectory)).filter((path) => path.endsWith(REPORT_DATA_SUFFIX));
@@ -25,6 +26,7 @@ export async function readKitItems(files: IFiles, reportsDirectory: string): Pro
   }
   const documents = await Promise.all(paths.map(async (path) => parseJson(await files.readText(path), path)));
   const parsed = documents.map((document) => readDocument(document));
+  parsed.forEach((document, position) => assertTrustworthy(document, paths[position] ?? ''));
   const failedHooks = [...new Set(parsed.flatMap((document) => document.failedHooks))];
   if (failedHooks.length > 0) {
     throw new KitDidNotRunError(
@@ -37,6 +39,17 @@ export async function readKitItems(files: IFiles, reportsDirectory: string): Pro
     throw new KitDidNotRunError('the kit report holds no result of any item', { reportsDirectory });
   }
   return items;
+}
+
+function assertTrustworthy(document: IKitDocument, path: string): void {
+  if (document.kind === 'unknown') {
+    throw new KitDidNotRunError(`the kit report file ${path} is neither a Mocha nor a Newman report`, { path });
+  }
+  if (document.problems.length > 0) {
+    throw new KitDidNotRunError(`the kit report file ${path} cannot be trusted: ${document.problems.join('; ')}`, {
+      path,
+    });
+  }
 }
 
 export function failedIdentifiers(items: readonly IKitItem[]): string[] {

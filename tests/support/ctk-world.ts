@@ -26,6 +26,7 @@ export type Handler = (command: ICommand, line: string) => ICommandResult | Prom
 export interface IWorldOptions {
   readonly networkExists?: boolean;
   readonly kitExit?: number;
+  readonly kitTimedOut?: boolean;
   readonly kitReport?: string | undefined;
   readonly containerListing?: string;
   readonly handlers?: readonly Handler[];
@@ -61,6 +62,9 @@ export function dockerAnswers(
     if (line.includes(' run -T --rm --name ') && !line.includes('--user 0')) {
       if (kitReport !== undefined) {
         await files.writeText(`${projectDirectoryOf(command)}/reports/report.json`, kitReport);
+      }
+      if (options.kitTimedOut === true) {
+        return { exitCode: 130, output: '', stdout: '', timedOut: true };
       }
       return options.kitExit === undefined ? succeeded() : failed(options.kitExit);
     }

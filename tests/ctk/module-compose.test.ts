@@ -111,7 +111,7 @@ describe('starting the module as a compose service', () => {
       runner: {
         run: async (command: { args: readonly string[] }) => {
           events.push(command.args.includes('up') ? 'up' : command.args.includes('ps') ? 'ps' : 'down');
-          return { exitCode: 0, output: '', stdout: '' };
+          return { exitCode: 0, output: '', stdout: '', timedOut: false };
         },
       },
     };

@@ -327,6 +327,13 @@ describe('running the kit', () => {
     await expect(runKitContainer(world.context, reach, await register())).rejects.toBeInstanceOf(KitDidNotRunError);
   });
 
+  it('says the kit did not run to the end when it ran out of time, however complete the report it left looks', async () => {
+    const world = ctkWorld({ kitTimedOut: true, kitReport: reportWithFailure('known failure') });
+    const running = runKitContainer(world.context, reach, await register('Excludes `known failure`.'));
+    await expect(running).rejects.toBeInstanceOf(KitDidNotRunError);
+    await expect(running).rejects.toThrow(/CONFORMANCE_RUN_TIMEOUT_MS/);
+  });
+
   it('says the kit did not run to the end when it fails and its report holds no failed item', async () => {
     const world = ctkWorld({ kitExit: 2 });
     await expect(runKitContainer(world.context, reach, await register())).rejects.toThrow(/exited with status 2/);

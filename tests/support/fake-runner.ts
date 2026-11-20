@@ -5,10 +5,23 @@ export type CommandHandler = (
   calls: readonly ICommand[],
 ) => ICommandResult | Promise<ICommandResult>;
 
-export const succeeded = (output = ''): ICommandResult => ({ exitCode: 0, output, stdout: output });
-export const failed = (exitCode = 1, output = ''): ICommandResult => ({ exitCode, output, stdout: output });
+export const succeeded = (output = ''): ICommandResult => ({ exitCode: 0, output, stdout: output, timedOut: false });
+export const failed = (exitCode = 1, output = ''): ICommandResult => ({
+  exitCode,
+  output,
+  stdout: output,
+  timedOut: false,
+});
 /** A command that succeeds and says something on stderr only, such as a warning of docker compose. */
-export const succeededWithWarning = (warning: string): ICommandResult => ({ exitCode: 0, output: warning, stdout: '' });
+/** A command that ran out of time and was killed. */
+export const timedOut = (): ICommandResult => ({ exitCode: 130, output: '', stdout: '', timedOut: true });
+
+export const succeededWithWarning = (warning: string): ICommandResult => ({
+  exitCode: 0,
+  output: warning,
+  stdout: '',
+  timedOut: false,
+});
 
 export class FakeRunner implements ICommandRunner {
   readonly calls: ICommand[] = [];

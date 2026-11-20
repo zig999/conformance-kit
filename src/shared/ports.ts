@@ -18,6 +18,8 @@ export interface ICommandResult {
   readonly output: string;
   /** Stdout alone: what a command answers, free of the warnings it prints on stderr. Judge a listing by this. */
   readonly stdout: string;
+  /** The command ran out of its `timeoutMillis` and was killed. Whatever it left behind is not a finished run. */
+  readonly timedOut: boolean;
 }
 
 export interface ICommandRunner {

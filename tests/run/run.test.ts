@@ -552,7 +552,8 @@ describe('a module run as a compose service', () => {
     const { code, report } = await execute({
       api: composeApi,
       handlers: [
-        (_c, line) => (line.includes(' ps -q') ? { exitCode: 0, output: 'abc\n', stdout: 'abc\n' } : undefined),
+        (_c, line) =>
+          line.includes(' ps -q') ? { exitCode: 0, output: 'abc\n', stdout: 'abc\n', timedOut: false } : undefined,
       ],
     });
     expect(code).toBe(1);

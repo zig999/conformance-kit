@@ -4,7 +4,9 @@ import { KitDidNotRunError } from '../../src/shared/errors.js';
 import {
   answered,
   failedTest,
+  mochaDocument,
   mochaReport,
+  newmanDocument,
   newmanReport,
   passedTest,
   type IMochaTest,
@@ -156,9 +158,9 @@ describe('a hook that failed', () => {
   });
 
   it.each(['beforeHooks', 'afterHooks'])('is found in %s of a suite, and in a nested suite', async (key) => {
-    const document = JSON.stringify({
-      results: [{ tests: [passedTest('a')], suites: [{ tests: [passedTest('b')], [key]: [hook()] }] }],
-    });
+    const document = mochaDocument([
+      { tests: [passedTest('a')], suites: [{ tests: [passedTest('b')], [key]: [hook()] }] },
+    ]);
     await expect(readFrom(document)).rejects.toBeInstanceOf(KitDidNotRunError);
   });
 
@@ -170,15 +172,13 @@ describe('a hook that failed', () => {
 
   it('is not an error when the hook passed or is pending, and it is still not an item', async () => {
     const items = await readFrom(
-      JSON.stringify({
-        results: [
-          {
-            tests: [passedTest('a'), hook({ state: 'passed', fail: false })],
-            beforeHooks: [hook({ state: 'passed', fail: false }), hook({ state: 'pending', fail: false })],
-            afterHooks: ['a-uuid-of-a-hook'],
-          },
-        ],
-      }),
+      mochaDocument([
+        {
+          tests: [passedTest('a'), hook({ state: 'passed', fail: false })],
+          beforeHooks: [hook({ state: 'passed', fail: false }), hook({ state: 'pending', fail: false })],
+          afterHooks: ['a-uuid-of-a-hook'],
+        },
+      ]),
     );
     expect(items).toEqual([{ identifier: 'a', passed: true }]);
   });
@@ -186,9 +186,10 @@ describe('a hook that failed', () => {
 
 describe('the failures of a Newman run', () => {
   const withFailures = (failures: unknown[], ...names: string[]): string =>
-    JSON.stringify({
-      run: { executions: names.map((name) => ({ item: { name }, response: { code: 200 }, assertions: [] })), failures },
-    });
+    newmanDocument(
+      names.map((name) => ({ item: { name }, response: { code: 200 }, assertions: [] })),
+      { failures },
+    );
 
   it('turn the item they name into a failed one, even when all its assertions passed', async () => {
     const items = await readFrom(
@@ -239,8 +240,82 @@ describe('reading a folder of reports', () => {
     await expect(readFrom('not json')).rejects.toThrow(/report-0\.json/);
   });
 
-  it('refuses a JSON document of another shape, as a report with no item', async () => {
-    await expect(readFrom('{"other": true}')).rejects.toBeInstanceOf(KitDidNotRunError);
+  it('refuses a JSON document that is neither a Mocha nor a Newman report, naming the file', async () => {
+    const reading = readFrom('{"other": true}');
+    await expect(reading).rejects.toBeInstanceOf(KitDidNotRunError);
+    await expect(reading).rejects.toThrow(/report-0\.json.*neither/);
+  });
+
+  it('refuses the whole folder when one file is of another shape, even if the others are fine', async () => {
+    const reading = readFrom(mochaReport({ tests: [passedTest('a')] }), '{"other": true}');
+    await expect(reading).rejects.toThrow(/neither/);
+  });
+});
+
+describe('the totals a report declares', () => {
+  const rejects = (document: string, message: RegExp) => expect(readFrom(document)).rejects.toThrow(message);
+  const two = { tests: [passedTest('a'), failedTest('b')] };
+
+  it('hold for a Mocha report whose items agree with its stats', async () => {
+    expect(await readFrom(mochaDocument([two]))).toHaveLength(2);
+  });
+
+  it('are required of a Mocha report: without stats the kit cannot know that every test is there', async () => {
+    await rejects(mochaDocument([two], null), /no totals/);
+  });
+
+  it('refuse a Mocha report with fewer tests than it declares', async () => {
+    await rejects(mochaDocument([two], { tests: 3 }), /declares 3 tests.*holds 2/);
+  });
+
+  it('refuse a Mocha report with more tests registered than ran, which is what a failed hook leaves behind', async () => {
+    await rejects(mochaDocument([two], { testsRegistered: 5 }), /registered 5.*ran 2/);
+  });
+
+  it('refuse a Mocha report that declares more passes than the items passed', async () => {
+    await rejects(mochaDocument([two], { passes: 2 }), /declares 2 passes.*1/);
+  });
+
+  it('refuse a Mocha report that declares more failures than the items failed', async () => {
+    await rejects(mochaDocument([two], { failures: 4 }), /declares 4 failures.*1/);
+  });
+
+  it('refuse a Mocha report that declares fewer failures than the items failed, whatever the cause', async () => {
+    await rejects(mochaDocument([two], { failures: 0 }), /declares 0 failures.*1/);
+  });
+
+  it('are checked in every file, the merged one and the single one alike', async () => {
+    const reading = readFrom(mochaDocument([two]), mochaDocument([two], { tests: 9 }));
+    await expect(reading).rejects.toThrow(/report-1\.json/);
+  });
+
+  it('hold for a Newman report whose executions agree with its stats', async () => {
+    expect(await readFrom(newmanDocument([answered('a', [{}, { error: { message: 'x' } }])]))).toHaveLength(1);
+  });
+
+  it('are required of a Newman report', async () => {
+    await rejects(newmanDocument([answered('a')], { stats: null }), /no totals/);
+  });
+
+  it('refuse a Newman report with fewer requests than it declares', async () => {
+    await rejects(
+      newmanDocument([answered('a')], { stats: { requests: { total: 3 } } }),
+      /declares 3 requests.*holds 1/,
+    );
+  });
+
+  it('refuse a Newman report that declares more failed assertions than the items show', async () => {
+    await rejects(
+      newmanDocument([answered('a', [{}])], { stats: { assertions: { total: 1, failed: 2 } } }),
+      /declares 2 failed assertions.*0/,
+    );
+  });
+
+  it('refuse a Newman report that declares fewer assertions than it holds', async () => {
+    await rejects(
+      newmanDocument([answered('a', [{}, {}])], { stats: { assertions: { total: 1, failed: 0 } } }),
+      /declares 1 assertions.*holds 2/,
+    );
   });
 });
 

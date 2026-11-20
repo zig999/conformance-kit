@@ -19,7 +19,7 @@ describe('the process runner', () => {
       child.finish(0);
     });
     const result = await createProcessRunner({ spawn: fake.spawn }).run(command());
-    expect(result).toEqual({ exitCode: 0, output: 'first second', stdout: 'first ' });
+    expect(result).toEqual({ exitCode: 0, output: 'first second', stdout: 'first ', timedOut: false });
   });
 
   it('keeps stdout apart from stderr, so that a warning is not taken for an answer', async () => {
@@ -75,12 +75,70 @@ describe('the process runner', () => {
     expect(chunks.join('')).toBe('onetwo');
   });
 
-  it('passes the environment, the working directory and the timeout of the command, and no stdin', async () => {
+  it('passes the environment and the working directory of the command, and no stdin', async () => {
     const fake = createFakeSpawn(({ child }) => child.finish(0));
-    await createProcessRunner({ spawn: fake.spawn }).run(command({ cwd: '/work', timeoutMillis: 5 }));
+    await createProcessRunner({ spawn: fake.spawn }).run(command({ cwd: '/work' }));
     const [spawned] = fake.spawned;
-    expect(spawned?.options).toMatchObject({ cwd: '/work', env: { PATH: '/bin' }, timeout: 5, killSignal: 'SIGKILL' });
+    expect(spawned?.options).toMatchObject({ cwd: '/work', env: { PATH: '/bin' } });
     expect(spawned?.options.stdio).toEqual(['ignore', 'pipe', 'pipe']);
+  });
+});
+
+describe('the time limit of a command', () => {
+  interface ITimers {
+    readonly scheduled: { callback: () => void; millis: number; cancelled: boolean }[];
+    readonly schedule: (callback: () => void, millis: number) => () => void;
+  }
+
+  const timers = (): ITimers => {
+    const scheduled: ITimers['scheduled'] = [];
+    return {
+      scheduled,
+      schedule: (callback, millis) => {
+        const entry = { callback, millis, cancelled: false };
+        scheduled.push(entry);
+        return () => {
+          entry.cancelled = true;
+        };
+      },
+    };
+  };
+
+  it('starts a timer of the length given, and stops the process with SIGKILL and says so when it runs out', async () => {
+    const clock = timers();
+    const fake = createFakeSpawn(() => clock.scheduled[0]?.callback());
+    const runner = createProcessRunner({ spawn: fake.spawn, schedule: clock.schedule });
+    const result = await runner.run(command({ timeoutMillis: 5 }));
+    expect(clock.scheduled.map((entry) => entry.millis)).toEqual([5]);
+    expect(fake.spawned[0]?.child.signals).toEqual(['SIGKILL']);
+    expect(result).toMatchObject({ exitCode: 130, timedOut: true });
+  });
+
+  it('cancels the timer, and does not say it timed out, when the process ends in time', async () => {
+    const clock = timers();
+    const fake = createFakeSpawn(({ child }) => child.finish(0));
+    const result = await createProcessRunner({ spawn: fake.spawn, schedule: clock.schedule }).run(
+      command({ timeoutMillis: 5 }),
+    );
+    expect(clock.scheduled[0]?.cancelled).toBe(true);
+    expect(result.timedOut).toBe(false);
+    expect(fake.spawned[0]?.child.signals).toEqual([]);
+  });
+
+  it('starts no timer for a command with no limit', async () => {
+    const clock = timers();
+    const fake = createFakeSpawn(({ child }) => child.finish(0));
+    await createProcessRunner({ spawn: fake.spawn, schedule: clock.schedule }).run(command());
+    expect(clock.scheduled).toEqual([]);
+  });
+
+  it('does not take a process killed by someone else for one that timed out', async () => {
+    const clock = timers();
+    const fake = createFakeSpawn(({ child }) => child.finish(null, 'SIGKILL'));
+    const result = await createProcessRunner({ spawn: fake.spawn, schedule: clock.schedule }).run(
+      command({ timeoutMillis: 5 }),
+    );
+    expect(result).toMatchObject({ exitCode: 130, timedOut: false });
   });
 });
 

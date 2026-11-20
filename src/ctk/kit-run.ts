@@ -75,6 +75,9 @@ export async function runKitContainer(
   if (ctx.signal.aborted) {
     throw new KitDidNotRunError('the run was interrupted while the kit ran');
   }
+  if (result.timedOut) {
+    throw new KitDidNotRunError('the kit did not finish within CONFORMANCE_RUN_TIMEOUT_MS, so its report is not read');
+  }
   const items = await readKitItems(ctx.effects.files, workspace.reportsDirectory);
   return judge(ctx, judgeKitItems(items, result.exitCode, register));
 }
