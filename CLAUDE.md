@@ -2,7 +2,7 @@
 
 Este arquivo limita o que o conformance-kit é, possui e faz. Quando um pedido conflitar com ele, aponte o conflito antes de implementar qualquer coisa.
 
-Regras gerais dos módulos de vendas: `../CLAUDE.md`. O padrão que esta biblioteca implementa é `../padrao-conformidade-tmforum.md`: leia-o antes de mexer em qualquer comportamento, porque ele define o formato do relatório, as variáveis, os códigos de saída e o formato dos desvios. Este arquivo vale só para o conformance-kit. O escopo detalhado e as fases estão em `PLANO.md`.
+Regras gerais dos módulos de vendas: `../CLAUDE.md`. O padrão que esta biblioteca implementa é `../padrao-conformidade-tmforum.md`: leia-o antes de mexer em qualquer comportamento, porque ele define o formato do relatório, as variáveis, os códigos de saída e o formato dos desvios. Este arquivo vale só para o conformance-kit. As decisões de projeto e o que nunca foi verificado estão na seção 11; os fatos da execução real do CTK, em `CHANGELOG.md`.
 
 ## 1. Propósito
 
@@ -79,21 +79,21 @@ Na dúvida, não pertence. Pare e pergunte.
 - **Teste antes do código.** Nenhuma mudança entra sem um teste que a prove. A primeira entrega porta os testes dos runners de `../productorder/backend/scripts/` e de `../inventory/backend/src/conformance/`, e só depois o código.
 - **Segurança em primeiro lugar.** Em caso de dúvida, falhe. Um CTK que passa por engano é um defeito grave; um que falha por engano é um defeito de disponibilidade. O kit prefere o segundo.
 - **Stack** igual à do `identity-kit`: Node 24 (`engines.node >=24`), pnpm, TypeScript estrito, Vitest, oxlint, prettier, secretlint e jscpd. Coloque `~/.nvm/versions/node/v24.22.1/bin` no PATH antes de rodar qualquer comando.
-- Regras de código: sem `console`, sem ciclo de import, sem `any`, sem asserção de tipo, sem `process.env`, função com até 30 linhas, até 3 parâmetros, sem número mágico, arquivos em kebab-case.
+- Regras de código: sem `console`, sem ciclo de import, sem `any`, sem asserção de tipo, sem `process.env`, função com até 30 linhas, até 3 parâmetros, sem número mágico, arquivos em kebab-case. Valem também para `scripts/`.
 - **Versão e distribuição:** os módulos instalam o kit por tag git (`github:zig999/conformance-kit#vX.Y.Z`), como dependência de desenvolvimento. A tag aponta para um commit que traz `dist` compilado. Tags são imutáveis e nunca movidas. Toda tag leva uma entrada no `CHANGELOG.md`. Mudança incompatível exige tag nova.
 - Antes de criar função, tipo ou opção pública, cite a regra do padrão ou o uso real em dois módulos que a justifica. Sem fonte, não cria.
 - Mudar o formato do relatório, as variáveis, os códigos de saída ou o formato dos desvios é mudar o padrão, e isso é decisão do usuário.
 
 ## 7. Decisões em aberto (confirmar antes de implementar a parte relacionada)
 
-- **Nomes dos campos da interface pública.** Decididos na Fase 1 e confirmados na Fase 9; estão em `PLANO.md` §4 e no `README.md`.
+- **Nomes dos campos da interface pública.** Decididos e publicados na `v0.1.0`; estão no `README.md` (tabela da interface pública) e em `src/index.ts`.
 - **Repositório remoto.** Criado pelo usuário em `github:zig999/conformance-kit`. A `main` e a tag `v0.1.0` foram enviadas em 2026-11-20; tags novas só quando o usuário pedir.
 
 Decididas em 2026-11-20 pelo usuário, conforme o padrão:
 
-- **Token no CTK:** o kit escreve o `Authorization` na `config.json` da cópia temporária privada (modo `0644` dentro de uma pasta `0700`: o CTK roda como outro usuário e não lê `0600`; decidido em 2026-11-20, desvio de projeto do padrão, ver `PLANO.md` §9), que é removida no desligamento. Não há encaminhador. Por isso o módulo em modo processo escuta onde o CTK o alcança, e não só em loopback.
+- **Token no CTK:** o kit escreve o `Authorization` na `config.json` da cópia temporária privada (modo `0644` dentro de uma pasta `0700`: o CTK roda como outro usuário e não lê `0600`; decidido em 2026-11-20, desvio de projeto do padrão, ver a seção 11 e `CHANGELOG.md`), que é removida no desligamento. Não há encaminhador. Por isso o módulo em modo processo escuta onde o CTK o alcança, e não só em loopback.
 - **Leitura de YAML:** a dependência `yaml` é a leitora de OAS do kit. Ela substitui o parser de subconjunto de YAML que o `productorder` mantém.
-- **Matriz de conformidade da raiz:** o gerador é um script em `scripts/` deste repositório, que não entra no pacote publicado (sem `bin`, e `files` só tem `dist`). Ele é a última fase do plano.
+- **Matriz de conformidade da raiz:** o gerador é um script em `scripts/` deste repositório, que não entra no pacote publicado (sem `bin`, e `files` só tem `dist`). Está implementado: `pnpm matrix`, sob `tsx` (dependência só de desenvolvimento).
 
 ## 8. Dependências entre módulos
 
@@ -122,3 +122,35 @@ Decididas em 2026-11-20 pelo usuário, conforme o padrão:
 - [ ] A interface pública mudou? Então `CHANGELOG.md`, a tag e o plano de atualização dos consumidores estão prontos?
 - [ ] Nenhuma decisão em aberto da seção 7 foi tomada em silêncio?
 - [ ] `pnpm typecheck`, `pnpm lint`, `pnpm format`, `pnpm test` e `pnpm exec jscpd src` passam em Node 24?
+
+## 11. Decisões de projeto e o que nunca foi verificado
+
+**Desvios do padrão** (o padrão não foi editado e precisa ser revisado por quem o mantém; cada um tem o seu fato em `CHANGELOG.md`, "Execução real do CTK"):
+
+- `config.json` da cópia do CTK com modo `0644` dentro da pasta `0700` (CNF-12, passo 4 diz `0600`). Os outros arquivos da cópia continuam `0600`. A constante é `READABLE_FILE_MODE` em `src/shared/node-files.ts`.
+- Identificador de item do CTK com o espaço em branco normalizado nos dois lados, no relatório e no nó de desvio (CNF-06 diz "exatamente como o CTK o relata"). Ponteiros JSON não são normalizados. Está em `src/shared/identifier.ts`.
+- Módulo em modo processo escuta em `0.0.0.0`, na porta de `CONFORMANCE_SERVICE_URL`, conferida como livre antes de tudo; o endpoint com a porta faz parte do título de cada item do CTK.
+
+**Decisões que o padrão deixa em aberto:**
+
+- Uma execução serve a uma API: `run.apis` traz todas e `run.apiCode` escolhe uma, em qualquer caixa. Com mais de uma API, o código é obrigatório, o relatório é `conformance-report.<tmfNNN>.json` e a pasta do CTK vem de `CONFORMANCE_KIT_DIRECTORY_<TMFNNN>`. Código ausente ou desconhecido recusa com o código 2 e sem relatório.
+- `IApiWithoutKit` (`withoutKit: true`): camadas 1 a 3, `conformanceKit: "not-applicable"` (só nessa chave do schema), sem docker nem variáveis do CTK, código 0 (ou 5 se o relatório não gravou). Configuração recusada continua `not-run`.
+- Endereço do CTK: no modo processo, o nome de host que o `config.json` do CTK já usa mais a porta de `CONFORMANCE_SERVICE_URL`, com `extra_hosts` para `host-gateway`; no modo compose, `kitHost` e `kitPort`. `CONFORMANCE_SERVICE_URL` serve ao runner para esperar o módulo ficar pronto.
+- O `config.json` do CTK é validado antes de qualquer camada rodar (ilegível ou sem `url` http(s): código 2). O `.env` do CTK só é copiado quando existe.
+- `withoutConformanceVariables` tira as `CONFORMANCE_*` do ambiente da migração, do módulo, do `docker compose` e dos testes, mesmo que o módulo as declare.
+- O kit não repassa nem guarda a saída do módulo; ao falhar, diz só o status ou o sinal. A saída do CTK e dos testes vai ao callback `output`, por um filtro que esconde o token mesmo quando dois blocos o partem.
+- Desligamento em ordem inversa; a cópia temporária remove `reports/` sozinha e primeiro, e esvazia como root quando preciso, porque o contêiner precisa do `docker-compose.yaml` da cópia.
+- Os testes das camadas 1 e 3 usam `CONFORMANCE_RUN_TIMEOUT_MS` como limite, que o padrão não define para eles. Cada arquivo listado precisa deixar resultado aprovado com ao menos uma asserção no relatório do vitest, porque o filtro do vitest é por trecho do caminho; nome que começa com `-` é recusado.
+- A comparação do OAS é semântica nas cinco dimensões do CNF-02 (caminhos, operações, esquemas, estados, códigos de resposta), como a do `inventory`: metadados do documento e prosa ficam de fora, `allOf` e referências são achatados, estados são conjuntos.
+- A validação do stand-in contra o OAS **não** entra na biblioteca: `productorder` e `inventory` a fazem em testes próprios (camada 3), com código e stand-ins diferentes, e uma função genérica exigiria um validador de JSON Schema, dependência vedada. Se um terceiro módulo mostrar o mesmo código, a decisão se reabre.
+- A matriz (`scripts/generate-matrix.ts`) deriva `Resultado` das camadas (`reprovada`, `incompleta`, `aprovada`), porque o relatório não guarda o código de saída, e mostra `Desvios` como `deviationsApplied` da última execução. Ela fica fora do pacote.
+
+**O que nunca foi verificado:**
+
+- O kit nunca rodou contra um módulo real: só contra executor de comandos de mentira e, uma vez, contra um servidor falso com o CTK real da TMF637.
+- A comparação do OAS nunca foi confrontada com um documento gerado por módulo real.
+- O leitor de relatório Newman nunca foi exercitado com um relatório real, e os CTKs de outras APIs de `../tmforum` não foram verificados quanto ao formato do relatório (o padrão só descreve Mocha e Newman).
+- O modo compose só foi exercitado com um serviço falso.
+
+**Ao migrar um módulo (Fase 11, de cada projeto, com a autorização do usuário para aquele projeto):** o `inventory` passa a ler os desvios dos nós da especificação (o `kitExcuses` sai) e a terminar com os códigos 0 a 5; o `productorder` deixa de gravar `reports/` no diretório do CTK e de passar a URL base com o caminho da API; o `productcatalog` passa a orquestrar o CTK pela biblioteca, a gravar o relatório e a aplicar desvios, e deixa de repassar `process.env` inteiro; os três passam a gravar o relatório no mesmo formato e a usar as mesmas variáveis; o leitor de YAML do `productorder` é substituído pela dependência `yaml`. A linha de base de cada módulo está na seção 8 do padrão. O módulo que cita um item do CTK num desvio usa o identificador com o espaço em branco normalizado.
+

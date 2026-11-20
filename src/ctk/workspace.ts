@@ -67,7 +67,7 @@ async function removeWorkspace(ctx: ICtkContext, workspace: IWorkspace): Promise
  * Deviation from CNF-12, which says every file is 0600: the CTK runs as the user `app` (uid 10001) of its image
  * and could not read a 0600 config.json that belongs to the user of the host ("Permission denied", seen in the
  * real run). So the config.json is 0644; the 0700 directory is what keeps other users of the host from it. The
- * other files stay 0600. Recorded in PLANO.md, section 9.
+ * other files stay 0600. Recorded in CHANGELOG.md ("Execução real do CTK") and CLAUDE.md.
  */
 export async function prepareWorkspace(ctx: ICtkContext, reach: KitReach, containerName: string): Promise<IWorkspace> {
   const { files, temporaryDirectory } = ctx.effects;
