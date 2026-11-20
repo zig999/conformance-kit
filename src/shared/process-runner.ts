@@ -14,10 +14,13 @@ export interface ISpawnOptions {
   readonly env: Environment;
   readonly stdio: StdioOptions;
   readonly signal?: AbortSignal;
+  /** Makes the child the leader of a new process group, so that its descendants can be signalled with it. */
+  readonly detached?: boolean;
   readonly killSignal: NodeJS.Signals;
 }
 
 export interface IChildProcess extends EventEmitter {
+  readonly pid?: number | undefined;
   readonly stdout: Readable | null;
   readonly stderr: Readable | null;
   kill(signal?: NodeJS.Signals): boolean;

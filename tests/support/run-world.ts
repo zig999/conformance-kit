@@ -5,7 +5,7 @@ import type { ICommand } from '../../src/shared/ports.js';
 import { AUTHORIZATION, KIT_DIRECTORY, SERVICE_URL, dockerAnswers, seedKit, type IWorldOptions } from './ctk-world.js';
 import { CONFORMANCE_NODE, SPECIFICATION_ROOT, conformanceNodeText, nodeText } from './deviation-nodes.js';
 import { FakeClock } from './fake-clock.js';
-import { createFakeSpawn } from './fake-spawn.js';
+import { childProcesses, createFakeSpawn } from './fake-spawn.js';
 import { FakeRunner, succeeded, failed } from './fake-runner.js';
 import { MemoryFiles } from './memory-files.js';
 import { API_BASE_PATH, processModule, type ProbeAnswer } from './module-world.js';
@@ -115,6 +115,7 @@ export function runWorld(options: IRunWorldOptions = {}) {
     randomId: () => 'a1b2c3',
     temporaryDirectory: '/tmp',
     spawn: spawning.spawn,
+    processes: childProcesses,
     portIsFree: async () => true,
     probe: {
       status: async () => {

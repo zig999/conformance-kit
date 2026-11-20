@@ -1,6 +1,7 @@
 import { withoutConformanceVariables } from '../shared/environment.js';
 import { KitDidNotRunError } from '../shared/errors.js';
 import type { Environment } from '../shared/ports.js';
+import type { IChildProcess } from '../shared/process-runner.js';
 import type { ICtkContext, KitReach } from './context.js';
 import type { IModuleCommand, IModuleRuntime, IProcessModule } from './module-types.js';
 import { waitUntilAnswering } from './readiness.js';
@@ -9,6 +10,7 @@ import { startStandIns } from './stand-ins.js';
 const LISTEN_ADDRESS = '0.0.0.0';
 const DEFAULT_HTTP_PORT = 80;
 const DEFAULT_HTTPS_PORT = 443;
+const GROUP_POLL_MS = 100;
 const SUCCESS_EXIT_CODE = 0;
 
 /**
@@ -30,7 +32,7 @@ async function freeServicePort(ctx: ICtkContext): Promise<number> {
 
 interface IRunningProcess {
   readonly ended: () => string | undefined;
-  readonly stop: () => Promise<void>;
+  readonly stop: () => Promise<boolean>;
 }
 
 async function applyMigration(ctx: ICtkContext, migration: IModuleCommand, env: Environment): Promise<void> {
@@ -52,6 +54,7 @@ function superviseProcess(ctx: ICtkContext, command: IModuleCommand, env: Enviro
     env,
     stdio: ['ignore', 'ignore', 'ignore'],
     killSignal: 'SIGKILL',
+    detached: true,
     ...(command.cwd === undefined ? {} : { cwd: command.cwd }),
   });
   let ended: string | undefined;
@@ -61,36 +64,40 @@ function superviseProcess(ctx: ICtkContext, command: IModuleCommand, env: Enviro
   child.once('close', (code: number | null, signal: NodeJS.Signals | null) => {
     ended ??= code === null ? `ended with signal ${String(signal)}` : `ended with status ${String(code)}`;
   });
-  return { ended: () => ended, stop: () => stopProcess(ctx, child, () => ended !== undefined) };
+  return { ended: () => ended, stop: () => stopProcess(ctx, child) };
 }
 
-async function stopProcess(
-  ctx: ICtkContext,
-  child: ReturnType<ICtkContext['effects']['spawn']>,
-  hasEnded: () => boolean,
-): Promise<void> {
-  if (hasEnded()) {
-    return;
+/** Polls the group, on the clock of the run, until it is gone or the time is up. Nothing is left running behind it. */
+async function waitUntilGone(ctx: ICtkContext, child: IChildProcess): Promise<boolean> {
+  const { clock, processes } = ctx.effects;
+  const deadline = clock.now() + ctx.settings.stepTimeoutMillis;
+  while (processes.isAlive(child) && clock.now() < deadline) {
+    await clock.sleep(Math.min(GROUP_POLL_MS, deadline - clock.now()));
   }
-  const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
-  child.kill('SIGTERM');
-  const waiting = new AbortController();
-  const grace = ctx.effects.clock.sleep(ctx.settings.stepTimeoutMillis, waiting.signal).catch(() => undefined);
-  try {
-    await Promise.race([closed, grace]);
-    if (!hasEnded()) {
-      child.kill('SIGKILL');
-    }
-    await closed;
-  } finally {
-    // The wait must not outlive the module: a timer that is left running keeps the process of the run alive.
-    waiting.abort();
+  return !processes.isAlive(child);
+}
+
+/**
+ * SIGTERM to the whole group, SIGKILL after the step timeout. The wrapper may end first and leave the server behind,
+ * so what is waited for is the group, not the process the run launched. A group that survives SIGKILL is a teardown
+ * that failed, and the run says so (exit code 3) instead of claiming it is clean.
+ */
+async function stopProcess(ctx: ICtkContext, child: IChildProcess): Promise<boolean> {
+  const { processes } = ctx.effects;
+  if (!processes.isAlive(child)) {
+    return true;
   }
+  processes.signal(child, 'SIGTERM');
+  if (await waitUntilGone(ctx, child)) {
+    return true;
+  }
+  processes.signal(child, 'SIGKILL');
+  return waitUntilGone(ctx, child);
 }
 
 /**
  * CNF-13, mode `process`: the stand-ins, then the migration, then the module on the port of the service url, listening
- * where the kit reaches it. It is stopped with SIGTERM and, after the step timeout, SIGKILL. No CONFORMANCE_* variable reaches it.
+ * where the kit reaches it. It is stopped, with everything it started, with SIGTERM and, after the step timeout, SIGKILL. No CONFORMANCE_* variable reaches it.
  */
 export async function startProcessModule(
   ctx: ICtkContext,

@@ -3,6 +3,7 @@ import { startModule } from '../../src/ctk/module-start.js';
 import { KitDidNotRunError } from '../../src/shared/errors.js';
 import { CTK_HOST } from '../support/ctk-world.js';
 import { FakeRunner, failed, succeeded } from '../support/fake-runner.js';
+import { FakeProcessGroup } from '../support/fake-spawn.js';
 import { moduleWorld, processModule, standIn } from '../support/module-world.js';
 
 const CONFORMANCE_ENVIRONMENT = {
@@ -154,35 +155,20 @@ describe('starting the module as a process', () => {
 });
 
 describe('stopping the module', () => {
-  it('stops it with SIGTERM and no more when it exits', async () => {
+  it('stops it with SIGTERM and no more when it exits, and waits for nothing', async () => {
     const world = moduleWorld();
     await startModule(world.context, processModule(), CTK_HOST);
     expect(await world.teardown.run()).toBe(0);
     expect(world.spawned[0]?.child.signals).toEqual(['SIGTERM']);
+    expect(world.clock.sleeps).toEqual([]);
   });
 
-  it('cancels the wait of the step timeout once the module has exited, so that nothing keeps the process alive', async () => {
-    const world = moduleWorld();
-    await startModule(world.context, processModule(), CTK_HOST);
-    await world.teardown.run();
-    const waits = world.clock.signals.filter((signal): signal is AbortSignal => signal !== undefined);
-    expect(world.clock.sleeps).toContain(22);
-    expect(waits.at(-1)?.aborted).toBe(true);
-  });
-
-  it('cancels that wait after a SIGKILL too', async () => {
-    const world = moduleWorld({ onSpawn: ({ child }) => void (child.exitsOn = new Set(['SIGKILL'])) });
-    await startModule(world.context, processModule(), CTK_HOST);
-    await world.teardown.run();
-    expect(world.clock.signals.at(-1)?.aborted).toBe(true);
-  });
-
-  it('sends SIGKILL when it does not exit within the step timeout', async () => {
+  it('sends SIGKILL when it does not exit within the step timeout, waiting no longer than that', async () => {
     const world = moduleWorld({ onSpawn: ({ child }) => void (child.exitsOn = new Set(['SIGKILL'])) });
     await startModule(world.context, processModule(), CTK_HOST);
     expect(await world.teardown.run()).toBe(0);
     expect(world.spawned[0]?.child.signals).toEqual(['SIGTERM', 'SIGKILL']);
-    expect(world.clock.sleeps).toContain(22);
+    expect(world.clock.sleeps.reduce((total, millis) => total + millis, 0)).toBe(22);
   });
 
   it('does not signal a module that has already ended', async () => {
@@ -200,6 +186,62 @@ describe('stopping the module', () => {
     await world.teardown.run();
     expect(world.spawned[0]?.child.signals).toEqual(['SIGTERM']);
     expect(events).toEqual(['start:catalog', 'close:catalog']);
+  });
+});
+
+describe('stopping everything the module started, not only the process the run launched', () => {
+  const withGroup = (group: FakeProcessGroup, options: Parameters<typeof moduleWorld>[0] = {}) => {
+    const world = moduleWorld(options);
+    return { ...world, context: { ...world.context, effects: { ...world.context.effects, processes: group } } };
+  };
+
+  it('starts the module as the leader of its own process group, so that its descendants can be reached', async () => {
+    const world = moduleWorld();
+    await startModule(world.context, processModule(), CTK_HOST);
+    expect(world.spawned[0]?.options.detached).toBe(true);
+  });
+
+  it('signals the group with SIGTERM and is done when the group is gone', async () => {
+    const group = new FakeProcessGroup(['SIGTERM']);
+    const world = withGroup(group);
+    await startModule(world.context, processModule(), CTK_HOST);
+    expect(await world.teardown.run()).toBe(0);
+    expect(group.signals).toEqual(['SIGTERM']);
+  });
+
+  it('sends SIGKILL to the group when a descendant outlives the grace, as when `pnpm start` ends and the server stays', async () => {
+    const group = new FakeProcessGroup(['SIGKILL']);
+    const world = withGroup(group, { onSpawn: ({ child }) => child.finish(0) });
+    await startModule(world.context, processModule(), CTK_HOST).catch(() => undefined);
+    expect(await world.teardown.run()).toBe(0);
+    expect(group.signals).toEqual(['SIGTERM', 'SIGKILL']);
+    expect(world.clock.sleeps.length).toBeGreaterThan(0);
+  });
+
+  it('still stops the group when the process the run launched ended on its own and left a descendant behind', async () => {
+    const group = new FakeProcessGroup(['SIGTERM']);
+    const world = withGroup(group, { probe: ['down'], onSpawn: ({ child }) => child.finish(1) });
+    await expect(startModule(world.context, processModule(), CTK_HOST)).rejects.toThrow(/ended before it answered/);
+    expect(await world.teardown.run()).toBe(0);
+    expect(group.signals).toEqual(['SIGTERM']);
+  });
+
+  it('counts a failed teardown when the group survives even SIGKILL, so that the run does not claim to be clean', async () => {
+    const group = new FakeProcessGroup([]);
+    const world = withGroup(group);
+    await startModule(world.context, processModule(), CTK_HOST);
+    expect(await world.teardown.run()).toBe(1);
+    expect(group.signals).toEqual(['SIGTERM', 'SIGKILL']);
+    expect(world.log.join('\n')).toContain('the module process');
+  });
+
+  it('signals nothing, and waits for nothing, when the group is already gone', async () => {
+    const group = new FakeProcessGroup([], false);
+    const world = withGroup(group);
+    await startModule(world.context, processModule(), CTK_HOST);
+    expect(await world.teardown.run()).toBe(0);
+    expect(group.signals).toEqual([]);
+    expect(world.clock.sleeps).toEqual([]);
   });
 });
 

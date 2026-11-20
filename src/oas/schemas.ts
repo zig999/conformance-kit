@@ -10,22 +10,13 @@ import {
   type IPair,
   type JsonRecord,
 } from './difference.js';
-import { SCHEMAS_POINTER, schemaViewOf, type IMemberFacets, type IMemberView } from './schema-view.js';
+import { SCHEMAS_POINTER, schemaViewOf, type IMemberView } from './schema-view.js';
 import { recordDifferences } from './values.js';
 
-const FACETS: readonly (keyof IMemberFacets)[] = ['type', 'format', 'reference', 'items', 'states'];
-const FACET_KEYWORDS: Readonly<Record<keyof IMemberFacets, string>> = {
-  type: 'type',
-  format: 'format',
-  reference: '$ref',
-  items: 'items',
-  states: 'enum',
-};
-
+/** Everything a property says (type, format, constraints, items, inline properties, compositions) except prose. */
 function memberDifferences(member: IPair<IMemberView>): IOasDifference[] {
   const pointer = member.pinned.pointer;
-  const facets = FACETS.filter((facet) => member.pinned[facet] !== member.generated[facet]);
-  const found = facets.map((facet) => differing(pointerTo(pointer, FACET_KEYWORDS[facet])));
+  const found = recordDifferences({ pinned: member.pinned.schema, generated: member.generated.schema }, pointer);
   return member.pinned.required === member.generated.required ? found : [...found, differing(pointer)];
 }
 

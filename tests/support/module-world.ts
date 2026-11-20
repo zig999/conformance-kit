@@ -1,6 +1,6 @@
 import type { IProcessModule, IStandIn } from '../../src/ctk/module-types.js';
 import { ctkWorld, type IWorldOptions } from './ctk-world.js';
-import { createFakeSpawn, type ISpawned } from './fake-spawn.js';
+import { childProcesses, createFakeSpawn, type ISpawned } from './fake-spawn.js';
 
 export type ProbeAnswer = number | 'down';
 
@@ -21,6 +21,7 @@ export function moduleWorld(options: IModuleWorldOptions = {}) {
   const effects = {
     ...base.context.effects,
     spawn: spawning.spawn,
+    processes: childProcesses,
     portIsFree: async (port: number) => {
       checkedPorts.push(port);
       return !(options.busyPorts ?? []).includes(port);

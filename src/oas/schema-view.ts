@@ -1,20 +1,14 @@
-import { pointerTo, recordOf, type JsonRecord } from './difference.js';
+import { isRecord, pointerTo, recordOf, type JsonRecord } from './difference.js';
 
 export const SCHEMAS_POINTER = '/components/schemas';
 
 const MEMBER_KEYWORDS: ReadonlySet<string> = new Set(['properties', 'required', 'allOf']);
 
-export interface IMemberFacets {
-  readonly type: string | undefined;
-  readonly format: string | undefined;
-  readonly reference: string | undefined;
-  readonly items: string | undefined;
-  readonly states: string | undefined;
-}
-
-export interface IMemberView extends IMemberFacets {
+export interface IMemberView {
   readonly pointer: string;
   readonly required: boolean;
+  /** The whole schema of the property, with every `$ref` read as the name of what it refers to. */
+  readonly schema: JsonRecord;
 }
 
 export interface ISchemaView {
@@ -36,28 +30,20 @@ function referenceNameOf(node: unknown): string | undefined {
   return stringOf(recordOf(node)['$ref'])?.split('/').pop();
 }
 
-function itemsFacetOf(items: unknown): string | undefined {
-  const schema = recordOf(items);
-  const type = stringOf(schema['type']);
-  const format = stringOf(schema['format']);
-  const formatted = type === undefined || format === undefined ? type : `${type}(${format})`;
-  return referenceNameOf(schema) ?? formatted;
-}
-
-function statesOf(schema: JsonRecord): string | undefined {
-  const states = schema['enum'];
-  return Array.isArray(states) ? JSON.stringify(states.map((state) => JSON.stringify(state)).toSorted()) : undefined;
-}
-
-function facetsOf(property: unknown): IMemberFacets {
-  const schema = recordOf(property);
-  return {
-    type: stringOf(schema['type']),
-    format: stringOf(schema['format']),
-    reference: referenceNameOf(schema),
-    items: itemsFacetOf(schema['items']),
-    states: statesOf(schema),
-  };
+/** Reads `#/components/schemas/Product` and `Product` as the same reference, at any depth. */
+function withReferencesByName(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(withReferencesByName);
+  }
+  if (!isRecord(value)) {
+    return value;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, member]) => [
+      key,
+      key === '$ref' && typeof member === 'string' ? (member.split('/').pop() ?? member) : withReferencesByName(member),
+    ]),
+  );
 }
 
 function gatherNode(gathering: IGathering, node: unknown, pointer: string): void {
@@ -71,7 +57,10 @@ function gatherNode(gathering: IGathering, node: unknown, pointer: string): void
   );
   const properties = pointerTo(pointer, 'properties');
   for (const [name, property] of Object.entries(recordOf(schema['properties']))) {
-    gathering.members.set(name, { pointer: pointerTo(properties, name), ...facetsOf(property) });
+    gathering.members.set(name, {
+      pointer: pointerTo(properties, name),
+      schema: recordOf(withReferencesByName(property)),
+    });
   }
   arrayOf(schema['required']).forEach((name) => typeof name === 'string' && gathering.required.add(name));
 }

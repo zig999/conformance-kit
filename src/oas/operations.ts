@@ -1,4 +1,5 @@
 import {
+  differing,
   holds,
   keysOf,
   pointerTo,
@@ -8,23 +9,11 @@ import {
   type IPair,
   type JsonRecord,
 } from './difference.js';
-import { valueDifferences } from './values.js';
+import { parameterDifferences, type IParameterSide } from './parameters.js';
+import { resolved } from './references.js';
+import { recordDifferences, valueDifferences } from './values.js';
 
 const HTTP_METHODS: readonly string[] = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
-const COMPONENT_REFERENCE = /^#\/components\/([A-Za-z]+)\/(.+)$/;
-const REFERENCE_SECTION_GROUP = 1;
-const REFERENCE_NAME_GROUP = 2;
-
-/** A response or a request body may be given by reference; both sides are read as the thing they refer to. */
-function resolved(root: JsonRecord, node: unknown, section: string): JsonRecord {
-  const target = recordOf(node);
-  const reference = target['$ref'];
-  const match = typeof reference === 'string' ? COMPONENT_REFERENCE.exec(reference) : null;
-  if (match?.[REFERENCE_SECTION_GROUP] !== section) {
-    return target;
-  }
-  return recordOf(recordOf(recordOf(root['components'])[section])[match[REFERENCE_NAME_GROUP] ?? '']);
-}
 
 function contentDifferences(bodies: IPair<JsonRecord>, pointer: string): IOasDifference[] {
   const contents = { pinned: recordOf(bodies.pinned['content']), generated: recordOf(bodies.generated['content']) };
@@ -43,6 +32,17 @@ function contentDifferences(bodies: IPair<JsonRecord>, pointer: string): IOasDif
   });
 }
 
+/** The headers a response carries (the link of a page, the total of a list) are part of the contract. */
+function headersDifferences(bodies: IPair<JsonRecord>, pointer: string): IOasDifference[] {
+  const at = pointerTo(pointer, 'headers');
+  const absent = presenceDifference(bodies, 'headers', at);
+  if (absent !== undefined) {
+    return [absent];
+  }
+  const headers = { pinned: recordOf(bodies.pinned['headers']), generated: recordOf(bodies.generated['headers']) };
+  return recordDifferences(headers, at, true);
+}
+
 function responseDifferences(roots: IPair<JsonRecord>, codes: IPair<JsonRecord>, pointer: string): IOasDifference[] {
   return keysOf(codes).flatMap((code) => {
     const at = pointerTo(pointer, code);
@@ -54,8 +54,14 @@ function responseDifferences(roots: IPair<JsonRecord>, codes: IPair<JsonRecord>,
       pinned: resolved(roots.pinned, codes.pinned[code], 'responses'),
       generated: resolved(roots.generated, codes.generated[code], 'responses'),
     };
-    return contentDifferences(bodies, at);
+    return [...headersDifferences(bodies, at), ...contentDifferences(bodies, at)];
   });
+}
+
+/** `required` that is absent is `required: false`. */
+function requiredDifference(bodies: IPair<JsonRecord>, pointer: string): IOasDifference[] {
+  const required = (body: JsonRecord): boolean => body['required'] === true;
+  return required(bodies.pinned) === required(bodies.generated) ? [] : [differing(pointerTo(pointer, 'required'))];
 }
 
 function requestBodyDifferences(
@@ -72,7 +78,9 @@ function requestBodyDifferences(
     pinned: resolved(roots.pinned, operations.pinned['requestBody'], 'requestBodies'),
     generated: resolved(roots.generated, operations.generated['requestBody'], 'requestBodies'),
   };
-  return holds(operations.pinned, 'requestBody') ? contentDifferences(bodies, at) : [];
+  return holds(operations.pinned, 'requestBody')
+    ? [...requiredDifference(bodies, at), ...contentDifferences(bodies, at)]
+    : [];
 }
 
 function operationDifferences(
@@ -90,6 +98,12 @@ function operationDifferences(
   ];
 }
 
+const sideOf = (root: JsonRecord, pathItem: JsonRecord, operation: JsonRecord): IParameterSide => ({
+  root,
+  pathItem,
+  operation,
+});
+
 function methodDifferences(roots: IPair<JsonRecord>, items: IPair<JsonRecord>, pointer: string): IOasDifference[] {
   return HTTP_METHODS.flatMap((method) => {
     const at = pointerTo(pointer, method);
@@ -101,7 +115,14 @@ function methodDifferences(roots: IPair<JsonRecord>, items: IPair<JsonRecord>, p
       return [];
     }
     const operations = { pinned: recordOf(items.pinned[method]), generated: recordOf(items.generated[method]) };
-    return operationDifferences(roots, operations, at);
+    const sides = {
+      pinned: sideOf(roots.pinned, items.pinned, operations.pinned),
+      generated: sideOf(roots.generated, items.generated, operations.generated),
+    };
+    return [
+      ...parameterDifferences(sides, { path: pointer, operation: at }),
+      ...operationDifferences(roots, operations, at),
+    ];
   });
 }
 

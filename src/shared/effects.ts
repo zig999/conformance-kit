@@ -1,4 +1,5 @@
 import type { IClock, ICommandRunner, IFiles, IHttpProbe } from './ports.js';
+import type { IProcessControl } from './process-control.js';
 import type { SpawnFunction } from './process-runner.js';
 
 /** What the run does to the world, all of it injectable so that no test waits, spawns or touches a disk. */
@@ -12,6 +13,8 @@ export interface IRunEffects {
   readonly temporaryDirectory: string;
   /** Starts a process that stays up (the module under test). */
   readonly spawn: SpawnFunction;
+  /** Signals, and asks about, the module and what it started. */
+  readonly processes: IProcessControl;
   /** Whether a port is free on all addresses of the host. */
   readonly portIsFree: (port: number) => Promise<boolean>;
   readonly probe: IHttpProbe;
