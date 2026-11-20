@@ -40,6 +40,18 @@ describe('the process runner', () => {
     expect(result.exitCode).toBe(130);
   });
 
+  it('keeps the output of a quiet command away from the callback', async () => {
+    const chunks: string[] = [];
+    const fake = createFakeSpawn(({ child }) => {
+      child.stdout.write('noise');
+      child.finish(0);
+    });
+    const runner = createProcessRunner({ spawn: fake.spawn, onOutput: (chunk) => chunks.push(chunk) });
+    const result = await runner.run(command());
+    expect(chunks).toEqual([]);
+    expect(result.output).toBe('noise');
+  });
+
   it('hands the chunks of output to the callback as they arrive', async () => {
     const chunks: string[] = [];
     const fake = createFakeSpawn(({ child }) => {
@@ -47,7 +59,9 @@ describe('the process runner', () => {
       child.stdout.write('two');
       child.finish(0);
     });
-    await createProcessRunner({ spawn: fake.spawn, onOutput: (chunk) => chunks.push(chunk) }).run(command());
+    await createProcessRunner({ spawn: fake.spawn, onOutput: (chunk) => chunks.push(chunk) }).run(
+      command({ forwardOutput: true }),
+    );
     expect(chunks.join('')).toBe('onetwo');
   });
 

@@ -8,6 +8,7 @@ interface IEntry {
 interface IFailureRule {
   readonly operation: string;
   readonly pathPart: string;
+  remaining: number;
 }
 
 export class MemoryFiles implements IFiles {
@@ -22,8 +23,9 @@ export class MemoryFiles implements IFiles {
     return this;
   }
 
-  failOn(operation: keyof IFiles, pathPart: string): this {
-    this.rules.push({ operation, pathPart });
+  /** Makes the operation fail for any path holding `pathPart`, the next `times` times (always, by default). */
+  failOn(operation: keyof IFiles, pathPart: string, times = Number.POSITIVE_INFINITY): this {
+    this.rules.push({ operation, pathPart, remaining: times });
     return this;
   }
 
@@ -36,7 +38,11 @@ export class MemoryFiles implements IFiles {
   }
 
   private check(operation: keyof IFiles, path: string): void {
-    if (this.rules.some((rule) => rule.operation === operation && path.includes(rule.pathPart))) {
+    const rule = this.rules.find(
+      (candidate) => candidate.operation === operation && path.includes(candidate.pathPart) && candidate.remaining > 0,
+    );
+    if (rule !== undefined) {
+      rule.remaining -= 1;
       throw new Error(`simulated failure of ${operation}`);
     }
   }

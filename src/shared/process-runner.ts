@@ -66,7 +66,9 @@ export function createProcessRunner(options: IProcessRunnerOptions = {}): IComma
           stream?.setEncoding('utf8');
           stream?.on('data', (chunk: string) => {
             output = (output + chunk).slice(-OUTPUT_LIMIT_CHARS);
-            options.onOutput?.(chunk);
+            if (command.forwardOutput === true) {
+              options.onOutput?.(chunk);
+            }
           });
         }
         child.on('error', (error: unknown) => settle(exitCodeOfError(error)));

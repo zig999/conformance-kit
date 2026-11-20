@@ -1,0 +1,70 @@
+import { join } from 'node:path';
+import { KitDidNotRunError } from '../shared/errors.js';
+import type { ICtkContext, KitReach } from './context.js';
+import {
+  COMPOSE_FILE,
+  CONFIGURATION_FILE,
+  ENVIRONMENT_FILE,
+  KIT_SERVICE,
+  OVERRIDE_FILE,
+  REPORTS_DIRECTORY,
+  emptyReports,
+  type IWorkspace,
+} from './docker-commands.js';
+import { kitConfigurationFor } from './kit-configuration.js';
+
+const DIRECTORY_PREFIX = 'conformance-kit-ctk-';
+const REPORTS_MODE = 0o777;
+const SUCCESS_EXIT_CODE = 0;
+const COPIED_FILES: readonly string[] = [COMPOSE_FILE, ENVIRONMENT_FILE];
+
+function overrideText(reach: KitReach, hostName: string): string {
+  const extraHosts =
+    reach.kind === 'process' ? `    extra_hosts:\n      - ${JSON.stringify(`${hostName}:host-gateway`)}\n` : '    {}\n';
+  return `services:\n  ${KIT_SERVICE}:\n${extraHosts}`;
+}
+
+async function copyKitFiles(ctx: ICtkContext, workspace: IWorkspace, reach: KitReach): Promise<void> {
+  const { files } = ctx.effects;
+  const { kitDirectory, authorization } = ctx.settings;
+  const kitText = await files.readText(join(kitDirectory, CONFIGURATION_FILE));
+  const configuration = kitConfigurationFor(kitText, reach, authorization);
+  for (const name of COPIED_FILES) {
+    await files.writePrivateText(join(workspace.root, name), await files.readText(join(kitDirectory, name)));
+  }
+  await files.writePrivateText(join(workspace.root, CONFIGURATION_FILE), configuration.text);
+  await files.writePrivateText(join(workspace.root, OVERRIDE_FILE), overrideText(reach, configuration.hostName));
+  await files.makeDirectory(workspace.reportsDirectory, REPORTS_MODE);
+}
+
+async function removeWorkspace(ctx: ICtkContext, workspace: IWorkspace): Promise<void> {
+  const { files, runner } = ctx.effects;
+  try {
+    await files.removeTree(workspace.root);
+    return;
+  } catch {
+    // The files in reports/ may belong to the user of the container; empty them as root and try again.
+  }
+  const emptied = await runner.run(emptyReports(ctx.settings, workspace));
+  if (emptied.exitCode !== SUCCESS_EXIT_CODE) {
+    throw new KitDidNotRunError('reports/ of the private copy could not be emptied as root');
+  }
+  await files.removeTree(workspace.root);
+}
+
+/**
+ * CNF-12, step 4: a private copy of the kit (directory 0700, files 0600), outside the repository, with the
+ * config.json that holds the token. The folder of the kit is only read. The copy is removed at the teardown.
+ */
+export async function prepareWorkspace(ctx: ICtkContext, reach: KitReach, containerName: string): Promise<IWorkspace> {
+  const { files, temporaryDirectory } = ctx.effects;
+  const root = await files.makePrivateDirectory(join(temporaryDirectory, DIRECTORY_PREFIX));
+  const workspace = { root, reportsDirectory: join(root, REPORTS_DIRECTORY), containerName };
+  ctx.teardown.push('the private copy of the kit', () => removeWorkspace(ctx, workspace));
+  try {
+    await copyKitFiles(ctx, workspace, reach);
+  } catch (cause) {
+    throw new KitDidNotRunError('the private copy of the kit could not be prepared', {}, { cause });
+  }
+  return workspace;
+}

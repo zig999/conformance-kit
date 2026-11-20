@@ -56,6 +56,7 @@ function vitestCommand(input: ITestLayersInput, layer: ILayer, reportPath: strin
     env: input.environment,
     interruptible: true,
     timeoutMillis: input.timeoutMillis,
+    forwardOutput: true,
   };
 }
 

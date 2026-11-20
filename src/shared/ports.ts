@@ -8,6 +8,8 @@ export interface ICommand {
   /** Only an interruptible command is stopped by SIGINT and SIGTERM. */
   readonly interruptible: boolean;
   readonly timeoutMillis?: number;
+  /** Hands the output of the command to the output callback of the run. Auxiliary commands stay quiet. */
+  readonly forwardOutput?: boolean;
 }
 
 export interface ICommandResult {
