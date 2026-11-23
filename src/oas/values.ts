@@ -3,8 +3,6 @@ import {
   holds,
   isRecord,
   keysOf,
-  missingFromGenerated,
-  missingFromPinned,
   pointerTo,
   presenceDifference,
   type IOasDifference,
@@ -33,15 +31,6 @@ export function sameValue(first: unknown, second: unknown): boolean {
   return Object.is(first, second);
 }
 
-function elementDifferences(pair: IPair<readonly unknown[]>, pointer: string): IOasDifference[] {
-  const lacking = (from: readonly unknown[], other: readonly unknown[]): number[] =>
-    from.flatMap((element, index) => (other.some((candidate) => sameValue(candidate, element)) ? [] : [index]));
-  return [
-    ...lacking(pair.pinned, pair.generated).map((index) => missingFromGenerated(pointerTo(pointer, index))),
-    ...lacking(pair.generated, pair.pinned).map((index) => missingFromPinned(pointerTo(pointer, index))),
-  ];
-}
-
 /** Compares two records member by member. In a map of names (such as `properties`) no key is a keyword to set aside. */
 export function recordDifferences(pair: IPair<JsonRecord>, pointer: string, namesOnly = false): IOasDifference[] {
   return keysOf(pair)
@@ -57,14 +46,14 @@ export function recordDifferences(pair: IPair<JsonRecord>, pointer: string, name
     });
 }
 
-/** A deep comparison: records by member, arrays as sets, anything else by identity. Descriptions, summaries and examples are set aside. */
+/**
+ * A deep comparison: records by member, anything else by identity. Descriptions, summaries and examples are set aside.
+ * A list is read as a set and, where the two differ, is one difference at the pointer of the list itself.
+ */
 export function valueDifferences(pair: IPair<unknown>, pointer: string, namesOnly = false): IOasDifference[] {
   const { pinned, generated } = pair;
   if (isRecord(pinned) && isRecord(generated)) {
     return recordDifferences({ pinned, generated }, pointer, namesOnly);
-  }
-  if (Array.isArray(pinned) && Array.isArray(generated)) {
-    return elementDifferences({ pinned, generated }, pointer);
   }
   return sameValue(pinned, generated) ? [] : [differing(pointer)];
 }

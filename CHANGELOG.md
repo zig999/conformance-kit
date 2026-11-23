@@ -2,6 +2,16 @@
 
 Toda tag leva uma entrada. Tags são imutáveis e nunca movidas; mudança incompatível exige tag nova.
 
+## v0.1.2 (2026-11-23)
+
+Ponteiro das listas na camada 2. A interface pública (`src/index.ts`) não mudou. Instala-se por `pnpm add -D github:zig999/conformance-kit#v0.1.2`.
+
+**Atenção ao migrar:** os ponteiros que `compareOas` reporta para listas mudaram. Um desvio que citava o ponteiro de um elemento (`.../enum/11`) ou o da propriedade para uma mudança de obrigatoriedade (`.../properties/reason`) deixa de cobrir a diferença e precisa citar o novo ponteiro.
+
+- **Uma lista que difere é uma diferença só, no ponteiro da lista.** Antes, um estado a menos em `enum` saía como `.../enum/<índice>` (`absent-from-generated` ou `absent-from-pinned`, um por elemento), e o índice depende da ordem da lista. Agora sai `{ pointer: '.../enum', kind: 'differs' }`. Vale para qualquer lista comparada (`enum`, `required` dentro de uma propriedade, `oneOf`, `anyOf`, `allOf` em linha); a lista continua lida como conjunto, então a ordem não conta.
+- **Obrigatoriedade no ponteiro da lista `required` que nomeia o membro.** Antes, um membro obrigatório num documento e não no outro saía no ponteiro da propriedade (`.../properties/reason`). Agora sai no ponteiro da lista que o nomeia, inclusive dentro de `allOf` (`/components/schemas/Error/allOf/1/required`), como `differs` quando o outro documento tem lista nesse ponteiro e como `absent-from-generated` ou `absent-from-pinned` quando não tem. Vários nomes da mesma lista dão uma diferença só.
+- Conferido com a OAS real da TMF622 v5.0.0: `draft` removido de `ProductOrderStateType` dá `/components/schemas/ProductOrderStateType/enum`; `reason` removido de `Error` dá `/components/schemas/Error/allOf/1/required`; a OAS contra ela mesma não dá diferença.
+
 ## v0.1.1 (2026-11-20)
 
 Correções do review do código e do uso real do CTK. A interface pública (`src/index.ts`) não mudou: `ICommandResult` e `IRunEffects`, que ganharam campos, são internos. Instala-se por `pnpm add -D github:zig999/conformance-kit#v0.1.1`.

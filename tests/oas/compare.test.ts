@@ -112,21 +112,21 @@ describe('comparing the schemas', () => {
     expect(pointersOf(extra, 'absent-from-pinned')).toEqual(['/components/schemas/Extra']);
   });
 
-  it('finds a state that the generated document lacks, with the pointer of the pinned one', () => {
+  it('finds a state that the generated document lacks as one difference at the list of states', () => {
     const generated = withMember(copyOf(pinned), ['components', 'schemas', 'ProductStatusType'], 'enum', ['created']);
     expect(compareOas(pinned, generated)).toEqual([
-      { pointer: '/components/schemas/ProductStatusType/enum/1', kind: 'absent-from-generated' },
+      { pointer: '/components/schemas/ProductStatusType/enum', kind: 'differs' },
     ]);
   });
 
-  it('finds a state that the pinned document lacks', () => {
+  it('finds a state that the pinned document lacks as one difference at the list of states', () => {
     const generated = withMember(copyOf(pinned), ['components', 'schemas', 'ProductStatusType'], 'enum', [
       'created',
       'active',
       'cancelled',
     ]);
     expect(compareOas(pinned, generated)).toEqual([
-      { pointer: '/components/schemas/ProductStatusType/enum/2', kind: 'absent-from-pinned' },
+      { pointer: '/components/schemas/ProductStatusType/enum', kind: 'differs' },
     ]);
   });
 
@@ -169,10 +169,38 @@ describe('comparing the schemas', () => {
     expect(pointersOf(generated)).toEqual(['/components/schemas/Product/properties/status/$ref']);
   });
 
-  it('finds a member that is required in one document and not in the other', () => {
+  it('finds a member that is required in one document and not in the other at the list that names it', () => {
     const generated = withMember(copyOf(pinned), ['components', 'schemas', 'Product'], 'required', []);
     expect(compareOas(pinned, generated)).toEqual([
-      { pointer: '/components/schemas/Product/properties/id', kind: 'differs' },
+      { pointer: '/components/schemas/Product/required', kind: 'differs' },
+    ]);
+  });
+
+  it('finds a list of required members that the generated document lacks', () => {
+    const generated = without(pinned, ['components', 'schemas', 'Product'], 'required');
+    expect(compareOas(pinned, generated)).toEqual([
+      { pointer: '/components/schemas/Product/required', kind: 'absent-from-generated' },
+    ]);
+  });
+
+  it('finds a list of required members that the pinned document lacks', () => {
+    const generated = withMember(copyOf(pinned), ['components', 'schemas', 'Error'], 'required', ['code']);
+    expect(compareOas(pinned, generated)).toEqual([
+      { pointer: '/components/schemas/Error/required', kind: 'absent-from-pinned' },
+    ]);
+  });
+
+  it('finds a changed list of required members inside allOf once, at the pointer of that list', () => {
+    const part = { properties: { name: { type: 'string' }, code: { type: 'string' } }, required: ['name', 'code'] };
+    const withPart = (document: unknown, value: unknown): unknown =>
+      withMember(copyOf(document as Record<string, unknown>), ['components', 'schemas', 'ProductCreate'], 'allOf', [
+        { $ref: '#/components/schemas/Product' },
+        value,
+      ]);
+    const pinnedPart = withPart(pinned, part);
+    const generated = withPart(pinned, { ...part, required: [] });
+    expect(compareOas(pinnedPart, generated)).toEqual([
+      { pointer: '/components/schemas/ProductCreate/allOf/1/required', kind: 'differs' },
     ]);
   });
 
@@ -284,12 +312,7 @@ describe('comparing everything a property carries, not only its type', () => {
     const generated = withMember(copyOf(pinned), ['components', 'schemas', 'Product', 'properties'], 'choice', {
       oneOf: [{ type: 'string' }, { type: 'boolean' }],
     });
-    expect(pointersOfPair(pinned, generated)).toHaveLength(2);
-    expect(
-      pointersOfPair(pinned, generated).every((pointer) =>
-        pointer.startsWith('/components/schemas/Product/properties/choice/oneOf/'),
-      ),
-    ).toBe(true);
+    expect(pointersOfPair(pinned, generated)).toEqual(['/components/schemas/Product/properties/choice/oneOf']);
   });
 
   it('still sets the prose of a property aside, at any depth', () => {

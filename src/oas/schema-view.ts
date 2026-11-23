@@ -6,7 +6,8 @@ const MEMBER_KEYWORDS: ReadonlySet<string> = new Set(['properties', 'required', 
 
 export interface IMemberView {
   readonly pointer: string;
-  readonly required: boolean;
+  /** The pointer of the first `required` list that names the member, or nothing where no list does. */
+  readonly requiredAt: string | undefined;
   /** The whole schema of the property, with every `$ref` read as the name of what it refers to. */
   readonly schema: JsonRecord;
 }
@@ -14,12 +15,15 @@ export interface IMemberView {
 export interface ISchemaView {
   readonly keywords: JsonRecord;
   readonly members: ReadonlyMap<string, IMemberView>;
+  /** The pointer of every `required` list the schema holds, through allOf and through the schema it refers to. */
+  readonly requiredLists: ReadonlySet<string>;
 }
 
 interface IGathering {
   readonly schemas: JsonRecord;
-  readonly members: Map<string, Omit<IMemberView, 'required'>>;
-  readonly required: Set<string>;
+  readonly members: Map<string, Omit<IMemberView, 'requiredAt'>>;
+  readonly required: Map<string, string>;
+  readonly requiredLists: Set<string>;
   readonly visited: Set<string>;
 }
 
@@ -62,7 +66,20 @@ function gatherNode(gathering: IGathering, node: unknown, pointer: string): void
       schema: recordOf(withReferencesByName(property)),
     });
   }
-  arrayOf(schema['required']).forEach((name) => typeof name === 'string' && gathering.required.add(name));
+  gatherRequired(gathering, schema, pointer);
+}
+
+function gatherRequired(gathering: IGathering, schema: JsonRecord, pointer: string): void {
+  if (!Array.isArray(schema['required'])) {
+    return;
+  }
+  const list = pointerTo(pointer, 'required');
+  gathering.requiredLists.add(list);
+  for (const name of arrayOf(schema['required'])) {
+    if (typeof name === 'string' && !gathering.required.has(name)) {
+      gathering.required.set(name, list);
+    }
+  }
 }
 
 function gatherNamed(gathering: IGathering, name: string): void {
@@ -75,7 +92,13 @@ function gatherNamed(gathering: IGathering, name: string): void {
 
 /** The keywords of a named schema, and its members as the schema holds them itself, through allOf and through the schema it refers to. */
 export function schemaViewOf(schemas: JsonRecord, name: string): ISchemaView {
-  const gathering: IGathering = { schemas, members: new Map(), required: new Set(), visited: new Set([name]) };
+  const gathering: IGathering = {
+    schemas,
+    members: new Map(),
+    required: new Map(),
+    requiredLists: new Set(),
+    visited: new Set([name]),
+  };
   gatherNode(gathering, schemas[name], pointerTo(SCHEMAS_POINTER, name));
   const keywords = Object.entries(recordOf(schemas[name])).filter(([key]) => !MEMBER_KEYWORDS.has(key));
   return {
@@ -83,8 +106,9 @@ export function schemaViewOf(schemas: JsonRecord, name: string): ISchemaView {
     members: new Map(
       [...gathering.members].map(([member, held]): [string, IMemberView] => [
         member,
-        { ...held, required: gathering.required.has(member) },
+        { ...held, requiredAt: gathering.required.get(member) },
       ]),
     ),
+    requiredLists: gathering.requiredLists,
   };
 }
